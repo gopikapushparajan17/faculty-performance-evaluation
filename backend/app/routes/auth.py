@@ -1,0 +1,47 @@
+from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from jose import JWTError, jwt
+from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.database import get_user_by_email, users_db
+
+router = APIRouter()
+
+
+class LoginRequest(BaseModel):
+    username: str  # email
+    password: str
+    college_id: str | None = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    department: str | None = None
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    from passlib.context import CryptContext
+    return CryptContext(schemes=["bcrypt"], deprecated="auto").verify(plain, hashed)
+
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode["exp"] = expire
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+@router.post("/login")
+def login(req: LoginRequest):
+    user = get_user_by_email(req.username)
+    if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token({"sub": user.id, "role": user.role})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, department=user.department),
+    }
