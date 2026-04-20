@@ -23,8 +23,11 @@ class UserResponse(BaseModel):
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    from passlib.context import CryptContext
-    return CryptContext(schemes=["bcrypt"], deprecated="auto").verify(plain, hashed)
+    import bcrypt
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict) -> str:

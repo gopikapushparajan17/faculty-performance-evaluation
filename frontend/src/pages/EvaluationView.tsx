@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import type { Evaluation } from '../types/evaluation'
 
-const statusFlow = ['Draft', 'Submitted', 'Faculty Signed', 'HOD Signed', 'Approved'] as const
+const statusFlow = ['Draft', 'Pending', 'Approved', 'Rejected'] as const
 
 export default function EvaluationView() {
   const { evaluationId } = useParams<{ evaluationId: string }>()
@@ -18,29 +18,25 @@ export default function EvaluationView() {
     api.get<Evaluation>(`/evaluations/${evaluationId}`).then(({ data }) => setEvalData(data)).catch(() => {}).finally(() => setLoading(false))
   }, [evaluationId])
 
-  const signAsFaculty = async () => {
+  const approveAsHod = async () => {
     if (!evaluationId) return
-    await api.post(`/evaluations/${evaluationId}/faculty-sign`)
-    setEvalData((e) => (e ? { ...e, status: 'faculty_signed', faculty_signature: 'signed' } : null))
-  }
-  const signAsHOD = async () => {
-    if (!evaluationId) return
-    await api.post(`/evaluations/${evaluationId}/hod-sign`)
-    setEvalData((e) => (e ? { ...e, status: 'hod_signed', hod_signature: 'signed' } : null))
-  }
-  const approveAsPrincipal = async () => {
-    if (!evaluationId) return
-    await api.post(`/evaluations/${evaluationId}/approve`)
-    setEvalData((e) => (e ? { ...e, status: 'approved', principal_signature: 'signed' } : null))
+    try {
+      await api.post(`/evaluations/${evaluationId}/approve`)
+      setEvalData((e) => (e ? { ...e, status: 'approved' } : null))
+      alert('Evaluation approved.')
+    } catch (err: unknown) {
+      const detail = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null
+      alert(typeof detail === 'string' ? detail : 'Approval failed.')
+    }
   }
 
   if (loading || !evalData) return <div className="loading-text">Loading...</div>
 
   const m = evalData.modules
-  const canEdit = user?.role === 'hod' && evalData.status === 'draft'
-  const canFacultySign = user?.role === 'faculty' && evalData.status === 'submitted'
-  const canHODSign = user?.role === 'hod' && evalData.status === 'faculty_signed'
-  const canPrincipalApprove = user?.role === 'principal' && evalData.status === 'hod_signed'
+  const canEdit = user?.role === 'faculty' && evalData.status === 'draft'
+  const canHodApprove = user?.role === 'hod' && evalData.status === 'pending'
 
   return (
     <div className="max-w-4xl">
@@ -60,7 +56,7 @@ export default function EvaluationView() {
         {statusFlow.map((label) => (
           <span
             key={label}
-            className={`eval-status-dot ${evalData.status === label.toLowerCase().replace(' ', '_') ? 'active' : 'inactive'}`}
+            className={`eval-status-dot ${evalData.status === label.toLowerCase() ? 'active' : 'inactive'}`}
           >
             {label}
           </span>
@@ -86,16 +82,12 @@ export default function EvaluationView() {
       </div>
 
       <div className="card card-body" style={{ backgroundColor: 'var(--surface)' }}>
-        <h2 className="section-title">Signatures & Approval</h2>
+        <h2 className="section-title">Approval</h2>
         <p className="form-label" style={{ marginTop: 0 }}>
-          {evalData.faculty_signature && 'Faculty signed ✓ '}
-          {evalData.hod_signature && 'HOD signed ✓ '}
-          {evalData.principal_signature && 'Principal approved ✓'}
+          Status: <strong>{evalData.status}</strong>
         </p>
         <div className="form-actions">
-          {canFacultySign && <button type="button" onClick={signAsFaculty} className="btn btn-primary">Faculty Sign</button>}
-          {canHODSign && <button type="button" onClick={signAsHOD} className="btn btn-secondary">HOD Sign</button>}
-          {canPrincipalApprove && <button type="button" onClick={approveAsPrincipal} className="btn btn-success">Approve</button>}
+          {canHodApprove && <button type="button" onClick={approveAsHod} className="btn btn-success">Approve</button>}
         </div>
       </div>
     </div>

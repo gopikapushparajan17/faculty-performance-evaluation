@@ -51,11 +51,14 @@ export default function FacultyDetails() {
 
   const onSubmit = async (data: FormData) => {
     if (isNew) {
-      const { data: created } = await api.post<FacultyProfile>('/faculty', data)
-      navigate(`/dashboard`)
+      const res = await api.post<FacultyProfile>('/faculty', data)
+  
+      const facultyId = res.data.id
+  
+      navigate(`/evaluation/new/${facultyId}`)
     } else if (id) {
       await api.put(`/faculty/${id}`, data)
-      navigate('/dashboard')
+      navigate(`/evaluation/new/${id}`)
     }
   }
 

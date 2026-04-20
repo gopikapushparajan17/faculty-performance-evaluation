@@ -1,4 +1,4 @@
-export type EvaluationStatus = 'draft' | 'submitted' | 'faculty_signed' | 'hod_signed' | 'approved'
+export type EvaluationStatus = 'draft' | 'pending' | 'approved' | 'rejected'
 
 export interface FacultyProfile {
   id: string
@@ -20,6 +20,8 @@ export interface StudentFeedbackData {
 // Module 2: Journal Index (disabled)
 export interface JournalIndexData {
   value: string
+  title?: string
+  scopus_link?: string
 }
 
 // Module 3: Conference Articles (max 4, 4 pts each)
@@ -146,13 +148,16 @@ export interface Evaluation {
   id: string
   faculty_id: string
   faculty?: FacultyProfile
+  ef_id?: string
   academic_year: string
   status: EvaluationStatus
   modules: EvaluationModules
   total_points: number
+  approved_at?: string
+  approved_by?: string
+  reject_reason?: string
   faculty_signature?: string
   hod_signature?: string
-  principal_signature?: string
   created_at?: string
   updated_at?: string
 }

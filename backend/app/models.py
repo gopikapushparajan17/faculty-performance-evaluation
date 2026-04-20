@@ -28,6 +28,8 @@ class StudentFeedbackData(BaseModel):
 
 class JournalIndexData(BaseModel):
     value: str = ""
+    title: str = ""
+    scopus_link: str = ""
 
 
 class ConferenceArticle(BaseModel):
@@ -154,10 +156,14 @@ class Evaluation(BaseModel):
     id: Optional[str] = None
     faculty_id: str
     faculty: Optional[FacultyProfile] = None
+    ef_id: Optional[str] = None
     academic_year: str = ""
-    status: str = "draft"  # draft | submitted | faculty_signed | hod_signed | approved
+    status: str = "draft"  # draft | pending | approved | rejected
     modules: EvaluationModules = EvaluationModules()
     total_points: int = 0
+    approved_at: Optional[str] = None
+    approved_by: Optional[str] = None
+    reject_reason: Optional[str] = None
     faculty_signature: Optional[str] = None
     hod_signature: Optional[str] = None
     principal_signature: Optional[str] = None
