@@ -1,9 +1,15 @@
-import axios from 'axios'
+import axios from "axios"
 
 export const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
+  baseURL: "http://localhost:8000/api"
 })
 
-const token = typeof localStorage !== 'undefined' ? localStorage.getItem('faculty_eval_token') : null
-if (token) api.defaults.headers.common.Authorization = `Bearer ${token}`
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token")
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
+})

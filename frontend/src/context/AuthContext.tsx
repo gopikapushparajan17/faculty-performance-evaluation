@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { api } from '../lib/api'
 
-export type Role = 'hod' | 'faculty' | 'principal'
+export type Role = 'hod' | 'faculty'
 
 export interface User {
   id: string

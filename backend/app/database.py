@@ -1,29 +1,187 @@
 import uuid
-from passlib.context import CryptContext
+import bcrypt
 
 from app.models import User, FacultyProfile, Evaluation, EvaluationModules
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # In-memory store (replace with DB in production)
-users_db: dict[str, User] = {}
+users_db: dict[str, User] = {}  # keyed by email
+users_by_id: dict[str, User] = {}  # keyed by id
 faculty_db: dict[str, FacultyProfile] = {}
 evaluations_db: dict[str, Evaluation] = {}
 
+
+def _is_valid_scopus(url: str | None) -> bool:
+  return bool(url) and isinstance(url, str) and url.startswith("https://www.scopus.com/")
+
+
+def _has_text(v: str | None) -> bool:
+  return bool(v and v.strip())
+
+
+def _compute_total_points(modules: EvaluationModules) -> int:
+  from app.models import (
+      StudentFeedbackData,
+      ConferenceArticlesData,
+      BookChaptersData,
+      BooksData,
+      IPRData,
+      FundedProjectsData,
+      FDPAttendedData,
+      TalksData,
+      DeptActivitiesData,
+      InstActivitiesData,
+      FDPOrganizedData,
+  )
+
+  m = modules
+  total = 0
+
+  sf = 0
+  if isinstance(m.student_feedback, StudentFeedbackData):
+      try:
+          pct = float(m.student_feedback.percentage or 0)
+      except ValueError:
+          pct = 0
+      if pct >= 85:
+          sf = 15
+      elif pct >= 70:
+          sf = 10
+      elif pct >= 60:
+          sf = 7
+      elif pct > 0:
+          sf = 5
+  total += sf
+
+  if isinstance(m.conference_articles, ConferenceArticlesData):
+      valid = [
+          e for e in m.conference_articles.entries
+          if _has_text(e.title) and _is_valid_scopus(e.proof_file)
+      ]
+      total += min(len(valid), 4) * 4
+
+  if isinstance(m.book_chapters, BookChaptersData):
+      valid = [
+          e for e in m.book_chapters.entries
+          if _has_text(e.title) and _is_valid_scopus(e.proof_file)
+      ]
+      total += min(len(valid), 4) * 6
+
+  if isinstance(m.books, BooksData):
+      valid = [
+          e for e in m.books.entries
+          if _has_text(e.title) and _has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)
+      ]
+      pts = 0
+      for entry in valid[:3]:
+          pts += 20 if entry.type == "authored" else 10
+      total += pts
+
+  if isinstance(m.ipr, IPRData):
+      pts = 0
+      for e in m.ipr.entries:
+          if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
+              continue
+          if e.type == "patent":
+              pts += 30
+          elif e.type in ("copyright", "trademark"):
+              pts += 10
+      total += pts
+
+  if isinstance(m.funded_projects, FundedProjectsData):
+      pts = 0
+      for e in m.funded_projects.entries:
+          if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
+              continue
+          amt = float(e.amount_lakhs or 0)
+          if amt > 5:
+              pts += 20
+          elif amt >= 3:
+              pts += 15
+          elif amt >= 2:
+              pts += 12
+          elif amt >= 1:
+              pts += 10
+          elif amt > 0:
+              pts += 5
+      total += pts
+
+  if isinstance(m.fdp_attended, FDPAttendedData):
+      pts = 0
+      valid = [
+          e for e in m.fdp_attended.entries
+          if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      for e in valid[:2]:
+          days = e.days or 0
+          if days >= 14:
+              pts += 10
+          elif days >= 5:
+              pts += 5
+          elif days >= 3:
+              pts += 3
+      total += pts
+
+  if isinstance(m.talks_delivered, TalksData):
+      valid = [
+          e for e in m.talks_delivered.entries
+          if _has_text(e.title) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      total += min(len(valid), 2) * 5
+
+  if isinstance(m.departmental_activities, DeptActivitiesData):
+      valid = [
+          e for e in m.departmental_activities.entries
+          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      total += min(len(valid), 3) * 3
+
+  if isinstance(m.institutional_activities, InstActivitiesData):
+      valid = [
+          e for e in m.institutional_activities.entries
+          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      total += min(len(valid), 3) * 5
+
+  if isinstance(m.fdp_organized, FDPOrganizedData):
+      pts = 0
+      valid = [
+          e for e in m.fdp_organized.entries
+          if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      for e in valid[:2]:
+          days = e.days or 0
+          if days >= 5:
+              pts += 10
+          elif days >= 3:
+              pts += 5
+          elif days >= 1:
+              pts += 2
+      total += pts
+
+  return total
+
 # Demo users: hod@demo.com, faculty@demo.com, principal@demo.com / password: demo123
 def _seed():
+    def _hash(pw: str) -> str:
+        return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
     for u in [
-        User(id="1", email="hod@demo.com", name="HOD User", role="hod", department="CSE", password_hash=pwd_context.hash("demo123")),
-        User(id="2", email="faculty@demo.com", name="Faculty User", role="faculty", department="CSE", password_hash=pwd_context.hash("demo123")),
-        User(id="3", email="principal@demo.com", name="Principal User", role="principal", password_hash=pwd_context.hash("demo123")),
+        User(id="1", email="hod@demo.com", name="HOD User", role="hod", department="CSE", password_hash=_hash("demo123")),
+        User(id="2", email="faculty@demo.com", name="Faculty User", role="faculty", department="CSE", password_hash=_hash("demo123")),
+        User(id="3", email="principal@demo.com", name="Principal User", role="principal", password_hash=_hash("demo123")),
     ]:
         users_db[u.email] = u
+        users_by_id[u.id] = u
 
 _seed()
 
 
 def get_user_by_email(email: str) -> User | None:
     return users_db.get(email)
+
+
+def get_user_by_id(uid: str) -> User | None:
+    return users_by_id.get(uid)
 
 
 def create_faculty(data: dict) -> FacultyProfile:
@@ -55,13 +213,15 @@ def create_evaluation(data: dict) -> Evaluation:
     eid = str(uuid.uuid4())
     mod = data.get("modules") or {}
     modules = EvaluationModules(**mod) if isinstance(mod, dict) else mod
+    total_points = _compute_total_points(modules)
     ev = Evaluation(
         id=eid,
         faculty_id=data["faculty_id"],
+        ef_id=data.get("ef_id"),
         academic_year=data.get("academic_year", ""),
         status=data.get("status", "draft"),
         modules=modules,
-        total_points=data.get("total_points", 0),
+        total_points=total_points,
     )
     ev.faculty = faculty_db.get(ev.faculty_id)
     evaluations_db[eid] = ev
@@ -82,8 +242,9 @@ def update_evaluation(eid: str, data: dict) -> Evaluation | None:
     for k, v in data.items():
         if k == "modules" and isinstance(v, dict):
             ev.modules = EvaluationModules(**v)
-        elif k in Evaluation.model_fields and k not in ("id", "faculty"):
+        elif k in Evaluation.model_fields and k not in ("id", "faculty", "total_points"):
             setattr(ev, k, v)
+    ev.total_points = _compute_total_points(ev.modules)
     ev.faculty = faculty_db.get(ev.faculty_id)
     return ev
 

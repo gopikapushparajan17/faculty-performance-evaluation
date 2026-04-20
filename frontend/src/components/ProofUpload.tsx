@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { api } from '../lib/api'
 
 interface ProofUploadProps {
@@ -7,12 +7,27 @@ interface ProofUploadProps {
   prefix?: string
   disabled?: boolean
   className?: string
+  mode?: 'scopus' | 'file'
 }
 
-export default function ProofUpload({ value, onChange, prefix = '', disabled, className = '' }: ProofUploadProps) {
+const SCOPUS_REGEX = /^https:\/\/www\.scopus\.com\/.*/i
+
+export default function ProofUpload({
+  value,
+  onChange,
+  prefix = '',
+  disabled,
+  className = '',
+  mode = 'file',
+}: ProofUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [url, setUrl] = useState(value ?? '')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setUrl(value ?? '')
+  }, [value])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -32,6 +47,7 @@ export default function ProofUpload({ value, onChange, prefix = '', disabled, cl
         ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
         : null
       setError(typeof msg === 'string' ? msg : msg && typeof msg === 'object' ? JSON.stringify(msg) : 'Upload failed')
+      onChange('')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -40,19 +56,53 @@ export default function ProofUpload({ value, onChange, prefix = '', disabled, cl
 
   const fileName = value ? value.split('/').pop()?.split('?')[0] : null
 
+  const handleScopusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    setUrl(next)
+    const trimmed = next.trim()
+    if (!trimmed) {
+      setError('')
+      onChange('')
+      return
+    }
+    if (!SCOPUS_REGEX.test(trimmed)) {
+      setError('Scopus URL must start with https://www.scopus.com/')
+      onChange('')
+      return
+    }
+    setError('')
+    onChange(trimmed)
+  }
+
   return (
     <div className={`proof-upload ${className}`}>
-      <div className="proof-upload-row">
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png"
-          onChange={handleFile}
-          disabled={disabled || uploading}
-        />
-        {uploading && <span className="loading-text">Uploading…</span>}
-      </div>
-      {fileName && <span className="proof-filename" title={value}>{fileName}</span>}
+      {mode === 'scopus' ? (
+        <div className="proof-upload-row" style={{ width: '100%' }}>
+          <input
+            type="url"
+            className="input"
+            style={{ width: '100%' }}
+            placeholder="https://www.scopus.com/..."
+            value={url}
+            onChange={handleScopusChange}
+            disabled={disabled}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="proof-upload-row">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.docx,.jpg,.jpeg,.png"
+              onChange={handleFile}
+              disabled={disabled || uploading}
+            />
+            {uploading && <span className="loading-text">Uploading…</span>}
+          </div>
+          {fileName && <span className="proof-filename" title={value}>{fileName}</span>}
+        </>
+      )}
       {error && <span className="proof-error">{error}</span>}
     </div>
   )

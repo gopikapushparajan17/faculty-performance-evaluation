@@ -9,7 +9,7 @@ from app import s3
 
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 MAX_SIZE_MB = 10
 
 
@@ -18,10 +18,10 @@ async def upload_proof(
     file: UploadFile = File(...),
     prefix: str = Form(""),
 ):
-    """Upload a proof file (PDF/JPG/PNG) to S3. Returns { \"url\": \"...\" }."""
+    """Upload a proof file (PDF/DOCX/JPG/PNG). Returns { "url": "..." }."""
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(400, f"Allowed types: PDF, JPG, PNG. Got {ext or 'unknown'}")
+        raise HTTPException(400, f"Allowed types: PDF, DOCX, JPG, PNG. Got {ext or 'unknown'}")
 
     content = await file.read()
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
