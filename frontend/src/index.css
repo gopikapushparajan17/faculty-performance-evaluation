@@ -533,3 +533,98 @@ td {
 .input-w-48 { width: 12rem; }
 .input-flex { flex: 1; min-width: 10rem; }
 .input-disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Buttons */
+.btn-danger {
+  background-color: #dc2626;
+  color: var(--white);
+}
+.btn-danger:hover { background-color: #b91c1c; }
+
+.btn-warning {
+  background-color: #d97706;
+  color: var(--white);
+}
+.btn-warning:hover { background-color: #b45309; }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: var(--white);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  width: 100%;
+  max-width: 26rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-box h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.modal-box p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem 0;
+}
+
+/* Status badges */
+.badge-draft            { background: #e2e8f0; color: #475569; }
+.badge-faculty_approved { background: #dbeafe; color: #1d4ed8; }
+.badge-hod_approved     { background: #d1fae5; color: #065f46; }
+.badge-principal_approved { background: #dcfce7; color: #14532d; }
+.badge-rejected         { background: #fee2e2; color: #991b1b; }
+
+/* Approval timeline */
+.approval-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.875rem;
+}
+
+.approval-row:last-child { border-bottom: none; }
+
+.approval-check {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.approval-check.done   { background: #16a34a; color: white; }
+.approval-check.pending { background: #e2e8f0; color: #94a3b8; }
+
+.emp-search {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.emp-search .input {
+  max-width: 14rem;
+}

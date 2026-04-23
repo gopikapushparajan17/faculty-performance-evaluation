@@ -176,6 +176,16 @@ def _seed():
 _seed()
 
 
+def create_user(email: str, name: str, password_hash: str, role: str, department: str | None = None) -> User | None:
+    if email in users_db:
+        return None
+    uid = str(uuid.uuid4())
+    u = User(id=uid, email=email, name=name, role=role, department=department, password_hash=password_hash)
+    users_db[email] = u
+    users_by_id[uid] = u
+    return u
+
+
 def get_user_by_email(email: str) -> User | None:
     return users_db.get(email)
 

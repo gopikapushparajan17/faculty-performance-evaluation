@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { api } from '../lib/api'
 
-export type Role = 'hod' | 'faculty'
+export type Role = 'hod' | 'faculty' | 'principal'
 
 export interface User {
   id: string
@@ -19,6 +19,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string, collegeId?: string) => Promise<void>
+  register: (name: string, email: string, password: string, department?: string) => Promise<void>
   logout: () => void
 }
 
@@ -34,6 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setState({ user: null, token: null, loading: false })
+  }, [])
+
+  const register = useCallback(async (name: string, email: string, password: string, department?: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string; user: User }>('/auth/register', {
+      name, email, password, department,
+    })
+    const token = data.access_token
+    const user = data.user
+    localStorage.setItem(TOKEN_KEY, token)
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+    api.defaults.headers.common.Authorization = `Bearer ${token}`
+    setState({ user, token, loading: false })
   }, [])
 
   const login = useCallback(async (email: string, password: string, collegeId?: string) => {
@@ -71,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.token])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

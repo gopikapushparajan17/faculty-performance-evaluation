@@ -80,6 +80,11 @@ export default function Login() {
               Login
             </button>
           </form>
+
+          <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+            New faculty?{' '}
+            <a href="/signup" style={{ color: 'var(--secondary)' }}>Create an account</a>
+          </p>
         </div>
       </div>
     </div>

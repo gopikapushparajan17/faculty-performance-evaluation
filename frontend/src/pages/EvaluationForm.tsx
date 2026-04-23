@@ -193,8 +193,8 @@ export default function EvaluationForm() {
       return
     }
     await api.post(`/evaluations/${data.id}/submit`)
-    form.setValue('status', 'pending')
-    alert('Evaluation submitted for approval.')
+    form.setValue('status', 'faculty_approved')
+    alert('Evaluation saved. Go to Dashboard to generate PDF and approve.')
   }
 
   return (

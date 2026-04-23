@@ -4,13 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-from app.routes import auth, faculty, evaluations, upload
+from app.routes import auth, faculty, evaluations, upload, pdf
 
 app = FastAPI(title="Faculty Performance Evaluation API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,6 +20,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(faculty.router, prefix="/api/faculty", tags=["faculty"])
 app.include_router(evaluations.router, prefix="/api/evaluations", tags=["evaluations"])
 app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
+app.include_router(pdf.router, prefix="/api/pdf", tags=["pdf"])
 
 # Serve local uploads when S3 not configured
 if Path("uploads").exists():

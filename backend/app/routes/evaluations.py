@@ -25,14 +25,12 @@ def _is_scopus(url: str | None) -> bool:
 
 
 def _is_file_proof(url: str | None) -> bool:
-    # For file proofs we store either "/uploads/..." or an S3 http(s) URL.
     return bool(url) and isinstance(url, str) and url.strip() != "" and not _is_scopus(url.strip())
 
 
 def _validate_modules_for_submit(modules: EvaluationModules) -> None:
     missing: list[str] = []
 
-    # Scopus required only for: Journal Index, Conference Articles, Book Chapters
     if _has_text(getattr(modules.journal_index, "title", "")) or _has_text(getattr(modules.journal_index, "value", "")):
         if not _is_scopus(getattr(modules.journal_index, "scopus_link", "")):
             missing.append("Journal Index requires a valid Scopus link.")
@@ -49,7 +47,6 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
                 missing.append("Book Chapters require Scopus links for filled titles.")
                 break
 
-    # All other metrics require file upload if entry is filled
     for e in modules.books.entries:
         if _has_text(e.title):
             if not _is_file_proof(e.proof_file):
@@ -102,12 +99,11 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
         raise HTTPException(status_code=400, detail="; ".join(missing))
 
 
+# ── List endpoints ─────────────────────────────────────────────────────────────
+
 @router.get("")
 def list_evaluations(user: User = Depends(get_current_user)):
-    # Backward-compatible: hod sees all; faculty sees mine.
     evs = list_evaluations_all()
-    if user.role == "hod":
-        return evs
     if user.role == "faculty":
         return [e for e in evs if e.ef_id == user.id]
     return evs
@@ -115,12 +111,26 @@ def list_evaluations(user: User = Depends(get_current_user)):
 
 @router.get("/pending")
 def list_pending(_: User = Depends(require_role("hod"))):
-    return [e for e in list_evaluations_all() if e.status == "pending"]
+    """HOD sees evaluations approved by faculty, waiting for HOD review."""
+    return [e for e in list_evaluations_all() if e.status == "faculty_approved"]
 
 
 @router.get("/approved")
-def list_approved(_: User = Depends(require_role("hod"))):
-    return [e for e in list_evaluations_all() if e.status == "approved"]
+def list_hod_approved(_: User = Depends(require_role("hod"))):
+    """HOD sees evaluations they have already approved (forwarded to principal)."""
+    return [e for e in list_evaluations_all() if e.status in ("hod_approved", "principal_approved")]
+
+
+@router.get("/hod-pending")
+def list_hod_pending_for_principal(_: User = Depends(require_role("principal"))):
+    """Principal sees evaluations approved by HOD, waiting for principal review."""
+    return [e for e in list_evaluations_all() if e.status == "hod_approved"]
+
+
+@router.get("/fully-approved")
+def list_fully_approved(_: User = Depends(require_role("principal"))):
+    """Principal sees fully approved evaluations."""
+    return [e for e in list_evaluations_all() if e.status == "principal_approved"]
 
 
 @router.get("/mine")
@@ -129,7 +139,7 @@ def list_my_evaluations(user: User = Depends(require_role("faculty"))):
 
 
 @router.get("/all")
-def list_all_evaluations(_: User = Depends(require_role("hod"))):
+def list_all_evaluations(_: User = Depends(require_role("hod", "principal"))):
     return list_evaluations_all()
 
 
@@ -143,12 +153,13 @@ def get_eval(eid: str, user: User = Depends(get_current_user)):
     return ev
 
 
+# ── Create / update ────────────────────────────────────────────────────────────
+
 @router.post("", response_model=Evaluation)
 def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
-    mod = body.get("modules") or {}
-    body["modules"] = mod
+    body["modules"] = body.get("modules") or {}
     body["ef_id"] = user.id
-    body["status"] = "pending"
+    body["status"] = "draft"
     return create_evaluation(body)
 
 
@@ -159,6 +170,8 @@ def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty
         raise HTTPException(404, "Evaluation not found")
     if existing.ef_id != user.id:
         raise HTTPException(403, "Access denied")
+    if existing.status == "principal_approved":
+        raise HTTPException(400, "Fully approved evaluations cannot be modified")
     if existing.status != "draft":
         raise HTTPException(400, "Only draft evaluations can be edited")
     ev = update_evaluation(eid, body)
@@ -167,63 +180,104 @@ def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty
     return ev
 
 
-@router.post("/{eid}/submit")
-def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
+# ── Approve (multi-role) ───────────────────────────────────────────────────────
+
+@router.post("/{eid}/approve")
+def approve_eval(eid: str, body: dict, user: User = Depends(get_current_user)):
     ev = get_evaluation(eid)
     if not ev:
         raise HTTPException(404, "Evaluation not found")
-    if ev.ef_id != user.id:
-        raise HTTPException(403, "Access denied")
-    if ev.status != "draft":
-        raise HTTPException(400, "Only draft evaluations can be submitted")
 
-    _validate_modules_for_submit(ev.modules)
-    update_evaluation(eid, {"status": "pending"})
-    return {"status": "pending"}
+    signature = str(body.get("signature") or user.name or "").strip()
+    signature_image = str(body.get("signature_image") or "").strip()
+    now = datetime.utcnow().isoformat()
 
+    def _approval_entry():
+        entry: dict = {"name": signature or user.name, "signed_at": now}
+        if signature_image:
+            entry["image"] = signature_image
+        return entry
 
-@router.post("/{eid}/approve")
-def hod_approve(eid: str, user: User = Depends(require_role("hod"))):
-    ev = get_evaluation(eid)
-    if not ev:
-        raise HTTPException(404, "Invalid evaluation ID")
-    if ev.status == "approved":
-        raise HTTPException(409, "This evaluation was already approved.")
-    if ev.status != "pending":
-        raise HTTPException(400, "Evaluation is not pending approval")
+    if user.role == "faculty":
+        if ev.ef_id != user.id:
+            raise HTTPException(403, "Access denied")
+        if ev.status != "draft":
+            raise HTTPException(400, "Only draft evaluations can be approved by faculty")
+        if not (ev.pdf_viewed_by or {}).get("faculty"):
+            raise HTTPException(400, "You must generate and view the PDF before approving.")
+        _validate_modules_for_submit(ev.modules)
+        approvals = dict(ev.approvals or {})
+        approvals["faculty"] = _approval_entry()
+        update_evaluation(eid, {
+            "status": "faculty_approved",
+            "approvals": approvals,
+            "faculty_signature": signature,
+        })
+        return {"status": "faculty_approved"}
 
-    # Validate proofs again server-side before approving
-    _validate_modules_for_submit(ev.modules)
-    update_evaluation(
-        eid,
-        {
-            "status": "approved",
-            "approved_at": datetime.utcnow().isoformat(),
+    elif user.role == "hod":
+        if ev.status != "faculty_approved":
+            raise HTTPException(400, "Evaluation has not been approved by faculty yet")
+        if not (ev.pdf_viewed_by or {}).get("hod"):
+            raise HTTPException(400, "You must generate and view the PDF before approving.")
+        if not signature_image:
+            raise HTTPException(400, "A drawn signature is required for HOD approval.")
+        approvals = dict(ev.approvals or {})
+        approvals["hod"] = _approval_entry()
+        update_evaluation(eid, {
+            "status": "hod_approved",
+            "approvals": approvals,
+            "approved_at": now,
             "approved_by": user.id,
-        },
-    )
-    return {"status": "approved"}
+            "hod_signature": signature,
+        })
+        return {"status": "hod_approved"}
 
+    elif user.role == "principal":
+        if ev.status != "hod_approved":
+            raise HTTPException(400, "Evaluation has not been approved by HOD yet")
+        if not (ev.pdf_viewed_by or {}).get("principal"):
+            raise HTTPException(400, "You must generate and view the PDF before approving.")
+        if not signature_image:
+            raise HTTPException(400, "A drawn signature is required for Principal approval.")
+        approvals = dict(ev.approvals or {})
+        approvals["principal"] = _approval_entry()
+        update_evaluation(eid, {
+            "status": "principal_approved",
+            "approvals": approvals,
+            "principal_signature": signature,
+        })
+        return {"status": "principal_approved"}
+
+    else:
+        raise HTTPException(403, "Access denied")
+
+
+# ── Reject (HOD or Principal) ──────────────────────────────────────────────────
 
 @router.post("/{eid}/reject")
-def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
+def reject_eval(eid: str, body: dict, user: User = Depends(get_current_user)):
     ev = get_evaluation(eid)
     if not ev:
-        raise HTTPException(404, "Invalid evaluation ID")
-    if ev.status == "approved":
-        raise HTTPException(409, "This evaluation was already approved.")
-    if ev.status != "pending":
-        raise HTTPException(400, "Evaluation is not pending approval")
+        raise HTTPException(404, "Evaluation not found")
+
     reason = str(body.get("reason") or "").strip()
     if not reason:
         raise HTTPException(400, "Reject reason is required")
-    update_evaluation(
-        eid,
-        {
-            "status": "rejected",
-            "approved_at": datetime.utcnow().isoformat(),
-            "approved_by": user.id,
-            "reject_reason": reason,
-        },
-    )
+
+    if user.role == "hod":
+        if ev.status != "faculty_approved":
+            raise HTTPException(400, "Can only reject faculty-approved evaluations")
+    elif user.role == "principal":
+        if ev.status != "hod_approved":
+            raise HTTPException(400, "Can only reject HOD-approved evaluations")
+    else:
+        raise HTTPException(403, "Access denied")
+
+    update_evaluation(eid, {
+        "status": "rejected",
+        "reject_reason": reason,
+        "approved_at": datetime.utcnow().isoformat(),
+        "approved_by": user.id,
+    })
     return {"status": "rejected"}

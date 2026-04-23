@@ -1,4 +1,20 @@
-export type EvaluationStatus = 'draft' | 'pending' | 'approved' | 'rejected'
+export type EvaluationStatus =
+  | 'draft'
+  | 'faculty_approved'
+  | 'hod_approved'
+  | 'principal_approved'
+  | 'rejected'
+
+export interface ApprovalEntry {
+  name: string
+  signed_at: string
+}
+
+export interface Approvals {
+  faculty?: ApprovalEntry
+  hod?: ApprovalEntry
+  principal?: ApprovalEntry
+}
 
 export interface FacultyProfile {
   id: string
@@ -11,20 +27,17 @@ export interface FacultyProfile {
   created_at?: string
 }
 
-// Module 1: Student Feedback
 export interface StudentFeedbackData {
   percentage: string
   points: number
 }
 
-// Module 2: Journal Index (disabled)
 export interface JournalIndexData {
   value: string
   title?: string
   scopus_link?: string
 }
 
-// Module 3: Conference Articles (max 4, 4 pts each)
 export interface ConferenceArticle {
   title: string
   proof_file?: string
@@ -34,7 +47,6 @@ export interface ConferenceArticlesData {
   points: number
 }
 
-// Module 4: Book Chapters (max 4, 6 pts each)
 export interface BookChapter {
   title: string
   proof_file?: string
@@ -44,7 +56,6 @@ export interface BookChaptersData {
   points: number
 }
 
-// Module 5: Authored/Edited Books (max 3)
 export interface BookEntry {
   title: string
   type: 'authored' | 'edited'
@@ -55,7 +66,6 @@ export interface BooksData {
   points: number
 }
 
-// Module 6: IPR (unlimited)
 export interface IPREntry {
   type: 'patent' | 'copyright' | 'trademark'
   description: string
@@ -66,7 +76,6 @@ export interface IPRData {
   points: number
 }
 
-// Module 7: Funded Projects
 export interface FundedProjectEntry {
   amount_lakhs: number
   description: string
@@ -77,7 +86,6 @@ export interface FundedProjectsData {
   points: number
 }
 
-// Module 8: FDP/Workshops Attended (max 2)
 export interface FDPAttendedEntry {
   name: string
   days: number
@@ -88,7 +96,6 @@ export interface FDPAttendedData {
   points: number
 }
 
-// Module 9: Talks Delivered (max 2, 5 pts each)
 export interface TalkEntry {
   title: string
   proof_file?: string
@@ -98,7 +105,6 @@ export interface TalksData {
   points: number
 }
 
-// Module 10: Departmental Activities (max 3, 3 pts each)
 export interface DeptActivityEntry {
   description: string
   proof_file?: string
@@ -108,7 +114,6 @@ export interface DeptActivitiesData {
   points: number
 }
 
-// Module 11: Institutional Activities (max 3, 5 pts each)
 export interface InstActivityEntry {
   description: string
   proof_file?: string
@@ -118,7 +123,6 @@ export interface InstActivitiesData {
   points: number
 }
 
-// Module 12: FDP/Workshops/Conferences Organized (max 2)
 export interface FDPOrganizedEntry {
   name: string
   days: number
@@ -158,6 +162,9 @@ export interface Evaluation {
   reject_reason?: string
   faculty_signature?: string
   hod_signature?: string
+  principal_signature?: string
+  approvals?: Approvals
+  pdf_viewed_by?: Record<string, { user_id: string; viewed_at: string }>
   created_at?: string
   updated_at?: string
 }

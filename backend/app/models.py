@@ -158,7 +158,7 @@ class Evaluation(BaseModel):
     faculty: Optional[FacultyProfile] = None
     ef_id: Optional[str] = None
     academic_year: str = ""
-    status: str = "draft"  # draft | pending | approved | rejected
+    status: str = "draft"  # draft | faculty_approved | hod_approved | principal_approved | rejected
     modules: EvaluationModules = EvaluationModules()
     total_points: int = 0
     approved_at: Optional[str] = None
@@ -167,3 +167,7 @@ class Evaluation(BaseModel):
     faculty_signature: Optional[str] = None
     hod_signature: Optional[str] = None
     principal_signature: Optional[str] = None
+    # approvals[role] = {name, signed_at}
+    approvals: dict = {}
+    # pdf_viewed_by[role] = {user_id, viewed_at}
+    pdf_viewed_by: dict = {}

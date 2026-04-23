@@ -1,3 +1,4 @@
+import io
 import os
 import uuid
 from pathlib import Path
@@ -10,7 +11,22 @@ from app import s3
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 MAX_SIZE_MB = 10
+BLUR_VARIANCE_THRESHOLD = 30.0
+
+
+def _is_blurry(content: bytes) -> bool:
+    try:
+        from PIL import Image, ImageFilter, ImageStat
+        img = Image.open(io.BytesIO(content)).convert("L")
+        if min(img.size) < 50:
+            return True
+        edges = img.filter(ImageFilter.FIND_EDGES)
+        stat = ImageStat.Stat(edges)
+        return stat.var[0] < BLUR_VARIANCE_THRESHOLD
+    except Exception:
+        return False
 
 
 @router.post("")
@@ -27,6 +43,13 @@ async def upload_proof(
     if len(content) > MAX_SIZE_MB * 1024 * 1024:
         raise HTTPException(400, f"File too large (max {MAX_SIZE_MB}MB)")
 
+    if ext in IMAGE_EXTENSIONS and _is_blurry(content):
+        raise HTTPException(
+            400,
+            "The uploaded image appears to be blurry or low-quality. "
+            "Please upload a clear, readable screenshot or photograph."
+        )
+
     content_type = file.content_type or "application/octet-stream"
     safe_name = (file.filename or "file").replace(" ", "_")
 
@@ -37,7 +60,6 @@ async def upload_proof(
         except Exception as e:
             raise HTTPException(502, f"S3 upload failed: {e}")
 
-    # Fallback: store locally when S3 not configured (e.g. dev)
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
     sub = Path(prefix) if prefix else Path("proofs")
