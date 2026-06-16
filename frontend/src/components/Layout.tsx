@@ -22,9 +22,9 @@ export default function Layout() {
           <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
             Dashboard
           </NavLink>
-          {user?.role === 'faculty' && (
+          {user?.role === 'hod' && (
             <NavLink to="/faculty/new" className={({ isActive }) => (isActive ? 'active' : '')}>
-              New Faculty
+              Add Faculty
             </NavLink>
           )}
         </nav>

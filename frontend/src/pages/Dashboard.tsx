@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import type { Evaluation } from '../types/evaluation'
@@ -13,6 +13,8 @@ export default function Dashboard() {
   const [selectedPendingId, setSelectedPendingId] = useState<string>('')
   const [selectedPending, setSelectedPending] = useState<Evaluation | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const location = useLocation()
+  const stateMessage = location.state?.message
 
   useEffect(() => {
     const load = async () => {
@@ -46,6 +48,13 @@ export default function Dashboard() {
     }
     load()
   }, [user?.role])
+
+  useEffect(() => {
+    if (stateMessage) {
+      setMessage({ type: 'success', text: stateMessage })
+      window.history.replaceState({}, document.title)
+    }
+  }, [stateMessage])
   
   const selected = useMemo(() => pending.find((e) => e.id === selectedPendingId) ?? null, [pending, selectedPendingId])
 
@@ -89,6 +98,9 @@ export default function Dashboard() {
 
       {user?.role === 'hod' ? (
         <>
+          <div className="mb-6">
+            <Link to="/faculty/new" className="btn btn-secondary">Add Faculty</Link>
+          </div>
           <section className="section">
             <h2 className="section-title">Pending Evaluations</h2>
             <div className="card card-body">
@@ -170,10 +182,6 @@ export default function Dashboard() {
         </>
       ) : (
         <>
-          <div className="mb-6">
-            <Link to="/faculty/new" className="btn btn-secondary">Add Faculty</Link>
-          </div>
-
           <div className="card table-wrap">
             <table>
               <thead>
