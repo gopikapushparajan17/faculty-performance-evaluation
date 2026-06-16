@@ -15,7 +15,8 @@ A full-stack web application for managing faculty performance evaluations with a
 7. [Features Overview](#7-features-overview)
 8. [Project Structure](#8-project-structure)
 9. [Environment Variables](#9-environment-variables)
-10. [Troubleshooting](#10-troubleshooting)
+10. [Developer Documentation](#10-developer-documentation)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -304,7 +305,21 @@ S3_USE_PATH_STYLE=
 
 ---
 
-## 10. Troubleshooting
+## 10. Developer Documentation
+
+Additional developer docs (architecture + API reference) are in `docs/`:
+
+- `docs/index.md`
+- `docs/overview.md`
+- `docs/architecture.md`
+- `docs/backend.md`
+- `docs/api.md`
+- `docs/frontend.md`
+- `docs/operations.md`
+
+---
+
+## 11. Troubleshooting
 
 ### `uvicorn: command not found`
 Use `python -m uvicorn main:app --reload --port 8000` instead of `uvicorn ...`.
