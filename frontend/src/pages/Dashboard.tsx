@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import type { Evaluation } from '../types/evaluation'
+import type { Evaluation, FacultyProfile } from '../types/evaluation'
 
 export default function Dashboard() {
   const { user } = useAuth()
   const [pending, setPending] = useState<Evaluation[]>([])
   const [approved, setApproved] = useState<Evaluation[]>([])
   const [mine, setMine] = useState<Evaluation[]>([])
+  const [profile, setProfile] = useState<FacultyProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPendingId, setSelectedPendingId] = useState<string>('')
   const [selectedPending, setSelectedPending] = useState<Evaluation | null>(null)
@@ -34,14 +35,19 @@ export default function Dashboard() {
             setMessage({ type: 'success', text: `Pending evaluations: ${pRes.data.length}` })
           }
         } else if (user?.role === 'faculty') {
-          const res = await api.get<Evaluation[]>('/evaluations/mine')
-          setMine(res.data)
+          const [mineRes, profileRes] = await Promise.all([
+            api.get<Evaluation[]>('/evaluations/mine'),
+            api.get<FacultyProfile>('/faculty/me'),
+          ])
+          setMine(mineRes.data)
+          setProfile(profileRes.data)
         }
       } catch {
         setMessage({ type: 'error', text: 'Failed to load dashboard data.' })
         setPending([])
         setApproved([])
         setMine([])
+        setProfile(null)
       } finally {
         setLoading(false)
       }
@@ -182,6 +188,13 @@ export default function Dashboard() {
         </>
       ) : (
         <>
+          {profile && (
+            <div className="mb-6">
+              <Link to={`/evaluation/new/${profile.id}`} className="btn btn-primary">
+                Start New Evaluation
+              </Link>
+            </div>
+          )}
           <div className="card table-wrap">
             <table>
               <thead>

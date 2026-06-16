@@ -7,6 +7,7 @@ from app.crud import (
     get_user_by_email,
     get_faculty_by_email,
     get_faculty_by_emp_id,
+    get_faculty_by_user_id,
     create_faculty_account,
 )
 from app.models import FacultyProfile
@@ -39,6 +40,14 @@ class FacultyAccountCreate(BaseModel):
 @router.get("")
 def list_faculty_route(_: User = Depends(get_current_user)):
     return list_faculty()
+
+
+@router.get("/me", response_model=FacultyProfile)
+def get_my_faculty_profile(current_user: User = Depends(require_role("faculty"))):
+    f = get_faculty_by_user_id(current_user.id)
+    if not f:
+        raise HTTPException(404, "Faculty profile not found")
+    return f
 
 
 @router.get("/{fid}")
