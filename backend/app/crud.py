@@ -370,3 +370,22 @@ def get_faculty_by_emp_id(emp_id: str):
     finally:
         db.close()
 
+def get_faculty_by_user_id(user_id: str):
+    db = SessionLocal()
+    try:
+        f = db.query(FacultyDB).filter(FacultyDB.user_id == int(user_id)).first()
+        if not f:
+            return None
+        return FacultyProfile(
+            id=str(f.id),
+            user_id=str(f.user_id),
+            department_name=f.dept,
+            employee_id=f.emp_id,
+            employee_name=f.name,
+            orcid_id=f.orcid or "",
+            official_email=f.email,
+            phone_number=f.phone,
+        )
+    finally:
+        db.close()
+
