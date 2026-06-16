@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON
+from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON, ForeignKey
 
 
 class Base(DeclarativeBase):
@@ -13,7 +13,7 @@ class UserDB(Base):
     username = Column(String(150), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(
-        Enum("faculty", "hod", "principal"),
+        Enum("ef", "hod", "principal"),
         nullable=False
     )
     college_name = Column(String(255), nullable=False)
@@ -23,6 +23,7 @@ class FacultyDB(Base):
     __tablename__ = "faculty_details"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False, unique=True)
     dept = Column(String(255), nullable=False)
     emp_id = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
