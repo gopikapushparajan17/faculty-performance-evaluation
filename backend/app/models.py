@@ -13,6 +13,7 @@ class User(BaseModel):
 
 class FacultyProfile(BaseModel):
     id: str
+    user_id: str
     department_name: str
     employee_id: str
     employee_name: str

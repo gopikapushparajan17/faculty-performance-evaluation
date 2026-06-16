@@ -108,7 +108,7 @@ def list_evaluations(user: User = Depends(get_current_user)):
     evs = list_evaluations_all()
     if user.role == "hod":
         return evs
-    if user.role == "faculty":
+    if user.role == "ef":
         return [e for e in evs if e.ef_id == user.id]
     return evs
 
@@ -124,7 +124,7 @@ def list_approved(_: User = Depends(require_role("hod"))):
 
 
 @router.get("/mine")
-def list_my_evaluations(user: User = Depends(require_role("faculty"))):
+def list_my_evaluations(user: User = Depends(require_role("ef"))):
     return [e for e in list_evaluations_all() if e.ef_id == user.id]
 
 
@@ -138,13 +138,13 @@ def get_eval(eid: str, user: User = Depends(get_current_user)):
     ev = get_evaluation(eid)
     if not ev:
         raise HTTPException(404, "Evaluation not found")
-    if user.role == "faculty" and ev.ef_id != user.id:
+    if user.role == "ef" and ev.ef_id != user.id:
         raise HTTPException(403, "Access denied")
     return ev
 
 
 @router.post("", response_model=Evaluation)
-def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
+def create_eval(body: dict, user: User = Depends(require_role("ef"))):
     mod = body.get("modules") or {}
     body["modules"] = mod
     body["ef_id"] = user.id
@@ -153,7 +153,7 @@ def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
 
 
 @router.put("/{eid}")
-def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty"))):
+def update_eval(eid: str, body: dict, user: User = Depends(require_role("ef"))):
     existing = get_evaluation(eid)
     if not existing:
         raise HTTPException(404, "Evaluation not found")
@@ -168,7 +168,7 @@ def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty
 
 
 @router.post("/{eid}/submit")
-def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
+def submit_eval(eid: str, user: User = Depends(require_role("ef"))):
     ev = get_evaluation(eid)
     if not ev:
         raise HTTPException(404, "Evaluation not found")

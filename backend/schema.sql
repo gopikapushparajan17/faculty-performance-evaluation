@@ -20,12 +20,14 @@ CREATE TABLE users (
 
 CREATE TABLE faculty_details (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL UNIQUE,
     dept VARCHAR(255) NOT NULL,
     emp_id VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     orcid VARCHAR(50),
     email VARCHAR(255) NOT NULL,
-    phone VARCHAR(30) NOT NULL
+    phone VARCHAR(30) NOT NULL,
+    CONSTRAINT fk_faculty_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- =========================

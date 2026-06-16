@@ -41,6 +41,7 @@ def create_faculty(data: dict):
 
     try:
         faculty = FacultyDB(
+            user_id=int(data["user_id"]),
             dept=data["department_name"],
             emp_id=data["employee_id"],
             name=data["employee_name"],
@@ -55,6 +56,7 @@ def create_faculty(data: dict):
 
         return FacultyProfile(
             id=str(faculty.id),
+            user_id=str(faculty.user_id),
             department_name=faculty.dept,
             employee_id=faculty.emp_id,
             employee_name=faculty.name,
@@ -63,6 +65,56 @@ def create_faculty(data: dict):
             phone_number=faculty.phone,
         )
 
+    finally:
+        db.close()
+
+def create_faculty_account(data: dict, creator_college: str) -> FacultyProfile:
+    import bcrypt
+    db = SessionLocal()
+
+    try:
+        pw_hash = bcrypt.hashpw(
+            data["password"].encode("utf-8"),
+            bcrypt.gensalt()
+        ).decode("utf-8")
+
+        user = UserDB(
+            username=data["email"],
+            password_hash=pw_hash,
+            role="faculty",
+            college_name=creator_college,
+            department=data["department"]
+        )
+        db.add(user)
+        db.flush()
+
+        faculty = FacultyDB(
+            user_id=user.id,
+            dept=data["department"],
+            emp_id=data["employee_id"],
+            name=data["name"],
+            orcid=data.get("orcid", ""),
+            email=data["email"],
+            phone=data["phone"]
+        )
+        db.add(faculty)
+        db.commit()
+        db.refresh(faculty)
+
+        return FacultyProfile(
+            id=str(faculty.id),
+            user_id=str(faculty.user_id),
+            department_name=faculty.dept,
+            employee_id=faculty.emp_id,
+            employee_name=faculty.name,
+            orcid_id=faculty.orcid or "",
+            official_email=faculty.email,
+            phone_number=faculty.phone,
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
 
@@ -75,6 +127,7 @@ def list_faculty():
         return [
             FacultyProfile(
                 id=str(f.id),
+                user_id=str(f.user_id),
                 department_name=f.dept,
                 employee_id=f.emp_id,
                 employee_name=f.name,
@@ -101,6 +154,7 @@ def get_faculty(fid: str):
 
         return FacultyProfile(
             id=str(f.id),
+            user_id=str(f.user_id),
             department_name=f.dept,
             employee_id=f.emp_id,
             employee_name=f.name,
@@ -135,6 +189,7 @@ def update_faculty(fid: str, data: dict):
 
         return FacultyProfile(
             id=str(faculty.id),
+            user_id=str(faculty.user_id),
             department_name=faculty.dept,
             employee_id=faculty.emp_id,
             employee_name=faculty.name,
@@ -274,6 +329,44 @@ def update_evaluation(eid: str, data: dict):
 
         return get_evaluation(str(e.id))
 
+    finally:
+        db.close()
+
+def get_faculty_by_email(email: str):
+    db = SessionLocal()
+    try:
+        f = db.query(FacultyDB).filter(FacultyDB.email == email).first()
+        if not f:
+            return None
+        return FacultyProfile(
+            id=str(f.id),
+            user_id=str(f.user_id),
+            department_name=f.dept,
+            employee_id=f.emp_id,
+            employee_name=f.name,
+            orcid_id=f.orcid or "",
+            official_email=f.email,
+            phone_number=f.phone,
+        )
+    finally:
+        db.close()
+
+def get_faculty_by_emp_id(emp_id: str):
+    db = SessionLocal()
+    try:
+        f = db.query(FacultyDB).filter(FacultyDB.emp_id == emp_id).first()
+        if not f:
+            return None
+        return FacultyProfile(
+            id=str(f.id),
+            user_id=str(f.user_id),
+            department_name=f.dept,
+            employee_id=f.emp_id,
+            employee_name=f.name,
+            orcid_id=f.orcid or "",
+            official_email=f.email,
+            phone_number=f.phone,
+        )
     finally:
         db.close()
 
