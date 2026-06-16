@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
-from app.database import get_user_by_email, users_db
+from app.crud import get_user_by_email
 
 router = APIRouter()
 
@@ -42,9 +42,20 @@ def login(req: LoginRequest):
     user = get_user_by_email(req.username)
     if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_access_token({"sub": user.id, "role": user.role})
+    token = create_access_token(
+    {
+        "sub": str(user.id),
+        "role": user.role
+    }
+)
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, department=user.department),
+        "user": UserResponse(
+    id=str(user.id),
+    email=user.username,
+    name=user.username,
+    role=user.role,
+    department=user.department
+),
     }

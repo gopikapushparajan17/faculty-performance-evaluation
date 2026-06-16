@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.database import create_faculty, get_faculty, list_faculty, update_faculty
+from app.crud import create_faculty, get_faculty, list_faculty, update_faculty
 from app.models import FacultyProfile
 from pydantic import BaseModel
 from app.deps import get_current_user, require_role
