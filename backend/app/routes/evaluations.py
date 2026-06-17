@@ -5,11 +5,14 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.crud import (
     create_evaluation,
     get_evaluation,
+    get_faculty,
     update_evaluation,
     list_evaluations_all,
 )
 from app.deps import get_current_user, require_role
+from fastapi.responses import FileResponse
 from app.models import Evaluation, EvaluationModules, User
+from app.pdf_generator import generate_evaluation_pdf
 
 router = APIRouter()
 
@@ -227,3 +230,30 @@ def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
         },
     )
     return {"status": "rejected"}
+
+@router.get("/{eid}/pdf")
+def generate_pdf(eid: str):
+
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Evaluation not found")
+
+    faculty = get_faculty(ev.faculty_id)
+
+    print("FACULTY =", faculty)
+    print("FACULTY NAME =", faculty.employee_name if faculty else None)
+
+    filename = f"evaluation_{eid}.pdf"
+
+    generate_evaluation_pdf(
+        filename,
+        ev,
+        faculty
+    )
+
+    return FileResponse(
+        filename,
+        media_type="application/pdf",
+        filename=filename
+    )
