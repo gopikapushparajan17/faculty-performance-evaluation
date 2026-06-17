@@ -12,17 +12,14 @@ class UserDB(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     username = Column(String(150), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    _role = Column("role", Enum("ef", "faculty", "hod", "principal"), nullable=False)
+
+    role = Column(
+        Enum("faculty", "hod", "principal"),
+        nullable=False
+    )
+
     college_name = Column(String(255), nullable=False)
     department = Column(String(255))
-
-    @property
-    def role(self):
-        return "faculty" if self._role == "ef" else self._role
-
-    @role.setter
-    def role(self, value):
-        self._role = "ef" if value == "faculty" else value
 
 class FacultyDB(Base):
     __tablename__ = "faculty_details"
