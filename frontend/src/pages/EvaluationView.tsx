@@ -81,13 +81,38 @@ export default function EvaluationView() {
         <p className="scores-total">Total: {evalData.total_points} points</p>
       </div>
 
-      <div className="card card-body" style={{ backgroundColor: 'var(--surface)' }}>
+            <div className="card card-body" style={{ backgroundColor: 'var(--surface)' }}>
         <h2 className="section-title">Approval</h2>
+
         <p className="form-label" style={{ marginTop: 0 }}>
           Status: <strong>{evalData.status}</strong>
         </p>
+
         <div className="form-actions">
-          {canHodApprove && <button type="button" onClick={approveAsHod} className="btn btn-success">Approve</button>}
+          {canHodApprove && (
+            <button
+              type="button"
+              onClick={approveAsHod}
+              className="btn btn-success"
+            >
+              Approve
+            </button>
+          )}
+
+          {user?.role === 'hod' && evalData.status === 'approved' && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() =>
+                window.open(
+                  `http://localhost:8000/api/evaluations/${evaluationId}/pdf`,
+                  '_blank'
+                )
+              }
+            >
+              Generate PDF
+            </button>
+          )}
         </div>
       </div>
     </div>
