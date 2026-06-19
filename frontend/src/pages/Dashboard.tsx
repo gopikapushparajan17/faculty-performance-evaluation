@@ -65,12 +65,23 @@ export default function Dashboard() {
   const selected = useMemo(() => pending.find((e) => e.id === selectedPendingId) ?? null, [pending, selectedPendingId])
 
   useEffect(() => {
-    setSelectedPending(selected)
-  }, [selected])
+  setSelectedPending(selected)
+}, [selected])
 
-  if (loading) return <div className="loading-text">Loading...</div>
+if (loading) return <div className="loading-text">Loading...</div>
 
-  const approveSelected = async () => {
+const pendingCount = pending.length
+const approvedCount = approved.length
+
+const approvedMine = mine.filter(
+  (e) => e.status === 'approved'
+).length
+
+const pendingMine = mine.filter(
+  (e) => e.status === 'pending'
+).length
+
+const approveSelected = async () => {
     if (!selectedPendingId) return
     setMessage(null)
     try {
@@ -95,6 +106,41 @@ export default function Dashboard() {
   return (
     <div>
       <h1 className="page-title">{user?.role === 'hod' ? 'HOD Approval Dashboard' : 'Evaluating Faculty Dashboard'}</h1>
+      {user?.role === 'hod' ? (
+  <div className="stats-grid">
+    <div className="stat-card">
+      <h3>{pendingCount}</h3>
+      <p>Pending Evaluations</p>
+    </div>
+
+    <div className="stat-card">
+      <h3>{approvedCount}</h3>
+      <p>Approved Evaluations</p>
+    </div>
+
+    <div className="stat-card">
+      <h3>{pendingCount + approvedCount}</h3>
+      <p>Total Evaluations</p>
+    </div>
+  </div>
+) : (
+  <div className="stats-grid">
+    <div className="stat-card">
+      <h3>{mine.length}</h3>
+      <p>Total Evaluations</p>
+    </div>
+
+    <div className="stat-card">
+      <h3>{pendingMine}</h3>
+      <p>Pending</p>
+    </div>
+
+    <div className="stat-card">
+      <h3>{approvedMine}</h3>
+      <p>Approved</p>
+    </div>
+  </div>
+)}
 
       {message && (
         <div className={`card card-body mb-6 ${message.type === 'error' ? 'error-card' : ''}`}>
@@ -108,47 +154,85 @@ export default function Dashboard() {
             <Link to="/faculty/new" className="btn btn-secondary">Add Faculty</Link>
           </div>
           <section className="section">
-            <h2 className="section-title">Pending Evaluations</h2>
-            <div className="card card-body">
-              <div className="form-row">
-                <select
-                  className="input"
-                  value={selectedPendingId}
-                  onChange={(e) => setSelectedPendingId(e.target.value)}
-                >
-                  <option value="">Select pending evaluation</option>
-                  {pending.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {(e.faculty?.employee_name ?? e.faculty_id)} — {e.faculty?.employee_id ?? ''} — {e.academic_year}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!selectedPendingId}
-                  onClick={approveSelected}
-                >
-                  Approve
-                </button>
-              </div>
+  <h2 className="section-title">Pending Evaluations</h2>
 
-              {selectedPending && (
-                <div style={{ marginTop: '1rem' }}>
-                  <p className="form-label" style={{ marginBottom: '0.5rem' }}>
-                    Faculty: <strong>{selectedPending.faculty?.employee_name ?? selectedPending.faculty_id}</strong>
-                    {' '}({selectedPending.faculty?.employee_id ?? '—'})
-                  </p>
-                  <p className="form-label" style={{ marginBottom: 0 }}>
-                    Total Points: <strong>{selectedPending.total_points ?? 0}</strong>
-                  </p>
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <Link to={`/evaluation/${selectedPending.id}/view`} className="link">Open full read-only view</Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
+  {pending.length === 0 ? (
+    <div className="card card-body">
+      No pending evaluations.
+    </div>
+  ) : (
+    <div className="evaluation-grid">
+      {pending.map((ev) => (
+        <div className="evaluation-card" key={ev.id}>
+          <h3>
+            {ev.faculty?.employee_name ?? ev.faculty_id}
+          </h3>
+
+          <p>
+            <strong>ID:</strong>{" "}
+            {ev.faculty?.employee_id ?? "—"}
+          </p>
+
+          <p>
+            <strong>Academic Year:</strong>{" "}
+            {ev.academic_year}
+          </p>
+
+          <p>
+            <strong>Total Points:</strong>{" "}
+            {ev.total_points ?? 0}
+          </p>
+
+          <div className="card-actions">
+            <Link
+              to={`/evaluation/${ev.id}/view`}
+              className="btn btn-outline"
+            >
+              View
+            </Link>
+
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                try {
+                  await api.post(
+                    `/evaluations/${ev.id}/approve`
+                  )
+
+                  const [pRes, aRes] =
+                    await Promise.all([
+                      api.get<Evaluation[]>(
+                        '/evaluations/pending'
+                      ),
+                      api.get<Evaluation[]>(
+                        '/evaluations/approved'
+                      ),
+                    ])
+
+                  setPending(pRes.data)
+                  setApproved(aRes.data)
+
+                  setMessage({
+                    type: 'success',
+                    text:
+                      'Evaluation approved successfully.',
+                  })
+                } catch {
+                  setMessage({
+                    type: 'error',
+                    text: 'Approval failed.',
+                  })
+                }
+              }}
+            >
+              Approve
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
 
           <section className="section">
             <h2 className="section-title">Approved Evaluations</h2>
@@ -214,7 +298,10 @@ export default function Dashboard() {
                   mine.map((ev) => (
                     <tr key={ev.id}>
                       <td>{ev.faculty?.employee_name ?? ev.faculty_id} — {ev.academic_year}</td>
-                      <td><span className="badge">{ev.status}</span></td>
+                      <td><span className={`badge ${ev.status}`}>
+                        {ev.status}
+                        </span>
+                      </td>
                       <td style={{ fontWeight: 500 }}>{ev.total_points ?? 0}</td>
                       <td>
                         <Link to={`/evaluation/${ev.id}/view`} className="link">View</Link>

@@ -9,6 +9,14 @@ from app.crud import (
     update_evaluation,
     list_evaluations_all,
 )
+from app.crud import (
+    create_evaluation,
+    get_evaluation,
+    get_faculty,
+    update_evaluation,
+    list_evaluations_all,
+    list_faculty,
+)
 from app.deps import get_current_user, require_role
 from fastapi.responses import FileResponse
 from app.models import Evaluation, EvaluationModules, User
@@ -128,7 +136,22 @@ def list_approved(_: User = Depends(require_role("hod"))):
 
 @router.get("/mine")
 def list_my_evaluations(user: User = Depends(require_role("faculty"))):
-    return [e for e in list_evaluations_all() if str(e.ef_id) == str(user.id)]
+
+    faculty = next(
+        (
+            f for f in list_faculty()
+            if str(f.user_id) == str(user.id)
+        ),
+        None
+    )
+
+    if not faculty:
+        return []
+
+    return [
+        e for e in list_evaluations_all()
+        if str(e.faculty_id) == str(faculty.id)
+    ]
 
 
 @router.get("/all")

@@ -480,9 +480,14 @@ td {
 
 .scores-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+  grid-template-columns: 3fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.scores-grid div {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .scores-total {
@@ -533,3 +538,154 @@ td {
 .input-w-48 { width: 12rem; }
 .input-flex { flex: 1; min-width: 10rem; }
 .input-disabled { opacity: 0.6; cursor: not-allowed; }
+/* Dashboard KPI Cards */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+}
+
+.stat-card h3 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-card p {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge.approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.draft {
+  background: #e2e8f0;
+  color: #475569;
+}
+.evaluation-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.evaluation-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.evaluation-card h3 {
+  margin-top: 0;
+  color: var(--primary);
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.score-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.total-score-card,
+.status-card {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  color: white;
+  min-height: 90px;
+}
+
+.total-score-card h1,
+.status-card h1 {
+  font-size: 2rem;
+  margin: 0.25rem 0;
+}
+
+.total-score-card {
+  background: var(--primary);
+}
+
+.total-score-card h1 {
+  font-size: 2rem;
+  margin: 0.5rem 0;
+}
+
+.status-card h1 {
+  font-size: 2rem;
+  margin: 0.5rem 0;
+}
+
+.status-approved {
+  background: #16a34a;
+}
+
+.status-pending {
+  background: #d97706;
+}
+
+.status-rejected {
+  background: #dc2626;
+}
+
+.status-draft {
+  background: #64748b;
+}
+
+.score-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.score-card {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.score-card h3 {
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-muted);
+}
+
+.score-card p {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0;
+}
