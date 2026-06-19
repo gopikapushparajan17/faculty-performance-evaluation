@@ -39,7 +39,7 @@ export default function EvaluationView() {
   const canHodApprove = user?.role === 'hod' && evalData.status === 'pending'
 
   return (
-    <div className="max-w-4xl">
+    <div >
       <div className="eval-header">
         <h1 className="page-title" style={{ marginBottom: 0 }}>Evaluation — {evalData.faculty?.employee_name ?? evalData.faculty_id}</h1>
         <div className="form-row" style={{ marginBottom: 0 }}>
@@ -62,24 +62,65 @@ export default function EvaluationView() {
           </span>
         ))}
       </div>
+      
 
       <div className="card card-body mb-6">
-        <h2 className="section-title">Scores</h2>
-        <ul className="scores-grid">
-          <li>Student Feedback: {m?.student_feedback?.points ?? 0}</li>
-          <li>Conference Articles: {m?.conference_articles?.points ?? 0}</li>
-          <li>Book Chapters: {m?.book_chapters?.points ?? 0}</li>
-          <li>Books: {m?.books?.points ?? 0}</li>
-          <li>IPR: {m?.ipr?.points ?? 0}</li>
-          <li>Funded Projects: {m?.funded_projects?.points ?? 0}</li>
-          <li>FDP Attended: {m?.fdp_attended?.points ?? 0}</li>
-          <li>Talks: {m?.talks_delivered?.points ?? 0}</li>
-          <li>Dept Activities: {m?.departmental_activities?.points ?? 0}</li>
-          <li>Inst Activities: {m?.institutional_activities?.points ?? 0}</li>
-          <li>FDP Organized: {m?.fdp_organized?.points ?? 0}</li>
-        </ul>
-        <p className="scores-total">Total: {evalData.total_points} points</p>
-      </div>
+
+  <div className="score-summary">
+    <div className="total-score-card">
+      <h2>Total Score</h2>
+      <h1>{evalData.total_points}</h1>
+      <p>Points</p>
+    </div>
+
+    <div className={`status-card status-${evalData.status}`}>
+      <h2>Status</h2>
+      <h1>{evalData.status.toUpperCase()}</h1>
+    </div>
+  </div>
+
+  <h2 className="section-title">Score Breakdown</h2>
+
+<div className="card card-body" style={{ marginTop: '1rem' }}>
+  <div className="scores-grid">
+
+    <div><strong>Student Feedback</strong></div>
+    <div>{m?.student_feedback?.points ?? 0}</div>
+
+    <div><strong>Conference Articles</strong></div>
+    <div>{m?.conference_articles?.points ?? 0}</div>
+
+    <div><strong>Book Chapters</strong></div>
+    <div>{m?.book_chapters?.points ?? 0}</div>
+
+    <div><strong>Books</strong></div>
+    <div>{m?.books?.points ?? 0}</div>
+
+    <div><strong>IPR</strong></div>
+    <div>{m?.ipr?.points ?? 0}</div>
+
+    <div><strong>Funded Projects</strong></div>
+    <div>{m?.funded_projects?.points ?? 0}</div>
+
+    <div><strong>FDP Attended</strong></div>
+    <div>{m?.fdp_attended?.points ?? 0}</div>
+
+    <div><strong>Talks Delivered</strong></div>
+    <div>{m?.talks_delivered?.points ?? 0}</div>
+
+    <div><strong>Department Activities</strong></div>
+    <div>{m?.departmental_activities?.points ?? 0}</div>
+
+    <div><strong>Institutional Activities</strong></div>
+    <div>{m?.institutional_activities?.points ?? 0}</div>
+
+    <div><strong>FDP Organized</strong></div>
+    <div>{m?.fdp_organized?.points ?? 0}</div>
+
+  </div>
+</div>
+
+</div>
 
             <div className="card card-body" style={{ backgroundColor: 'var(--surface)' }}>
         <h2 className="section-title">Approval</h2>

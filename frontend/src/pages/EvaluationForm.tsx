@@ -198,7 +198,7 @@ export default function EvaluationForm() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div >
       <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Evaluation Form</h1>
       <p className="form-label" style={{ marginBottom: '1.5rem' }}>Academic year: {form.watch('academic_year')}</p>
 

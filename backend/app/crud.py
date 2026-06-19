@@ -247,9 +247,12 @@ def get_evaluation(eid: str):
         if not e:
             return None
 
+        faculty = get_faculty(str(e.faculty_id))
+
         return Evaluation(
             id=str(e.id),
             faculty_id=str(e.faculty_id),
+            faculty=faculty,
             ef_id=str(e.ef_id),
             academic_year=e.academic_year or "",
             status=e.status or "draft",
@@ -273,24 +276,31 @@ def list_evaluations_all():
     try:
         evaluations = db.query(EvaluationDB).all()
 
-        return [
-            Evaluation(
-                id=str(e.id),
-                faculty_id=str(e.faculty_id),
-                ef_id=str(e.ef_id),
-                academic_year=e.academic_year or "",
-                status=e.status or "draft",
-                modules=EvaluationModules(**(e.modules or {})),
-                total_points=e.total_points or 0,
-                approved_at=e.approved_at,
-                approved_by=e.approved_by,
-                reject_reason=e.reject_reason,
-                faculty_signature=e.faculty_signature,
-                hod_signature=e.hod_signature,
-                principal_signature=e.principal_signature,
+        result = []
+
+        for e in evaluations:
+            faculty = get_faculty(str(e.faculty_id))
+
+            result.append(
+                Evaluation(
+                    id=str(e.id),
+                    faculty_id=str(e.faculty_id),
+                    faculty=faculty,
+                    ef_id=str(e.ef_id),
+                    academic_year=e.academic_year or "",
+                    status=e.status or "draft",
+                    modules=EvaluationModules(**(e.modules or {})),
+                    total_points=e.total_points or 0,
+                    approved_at=e.approved_at,
+                    approved_by=e.approved_by,
+                    reject_reason=e.reject_reason,
+                    faculty_signature=e.faculty_signature,
+                    hod_signature=e.hod_signature,
+                    principal_signature=e.principal_signature,
+                )
             )
-            for e in evaluations
-        ]
+
+        return result
 
     finally:
         db.close()
