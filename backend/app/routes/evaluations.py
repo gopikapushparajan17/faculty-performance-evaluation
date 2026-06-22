@@ -8,6 +8,7 @@ from app.crud import (
     get_faculty,
     update_evaluation,
     list_evaluations_all,
+    delete_evaluation,
 )
 from app.crud import (
     create_evaluation,
@@ -280,3 +281,12 @@ def generate_pdf(eid: str):
         media_type="application/pdf",
         filename=filename
     )
+
+@router.delete("/{eid}")
+def delete_eval(eid: str, _: User = Depends(require_role("hod"))):
+    success = delete_evaluation(eid)
+
+    if not success:
+        raise HTTPException(404, "Evaluation not found")
+
+    return {"message": "Evaluation deleted successfully"}

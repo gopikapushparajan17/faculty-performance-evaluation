@@ -399,3 +399,21 @@ def get_faculty_by_user_id(user_id: str):
     finally:
         db.close()
 
+def delete_evaluation(eid: str):
+    db = SessionLocal()
+
+    try:
+        e = db.query(EvaluationDB).filter(
+            EvaluationDB.id == int(eid)
+        ).first()
+
+        if not e:
+            return False
+
+        db.delete(e)
+        db.commit()
+
+        return True
+
+    finally:
+        db.close()

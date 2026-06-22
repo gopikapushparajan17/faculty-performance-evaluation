@@ -102,6 +102,35 @@ const approveSelected = async () => {
       setMessage({ type: 'error', text: typeof detail === 'string' ? detail : 'Approval failed due to an unexpected error.' })
     }
   }
+  const deleteEvaluation = async (id: string) => {
+  const confirmed = window.confirm(
+    'Are you sure you want to delete this evaluation?'
+  )
+
+  if (!confirmed) return
+
+  try {
+    await api.delete(`/evaluations/${id}`)
+
+    const [pRes, aRes] = await Promise.all([
+      api.get<Evaluation[]>('/evaluations/pending'),
+      api.get<Evaluation[]>('/evaluations/approved'),
+    ])
+
+    setPending(pRes.data)
+    setApproved(aRes.data)
+
+    setMessage({
+      type: 'success',
+      text: 'Evaluation deleted successfully.',
+    })
+  } catch {
+    setMessage({
+      type: 'error',
+      text: 'Failed to delete evaluation.',
+    })
+  }
+}
 
   return (
     <div>
@@ -184,50 +213,49 @@ const approveSelected = async () => {
           </p>
 
           <div className="card-actions">
-            <Link
-              to={`/evaluation/${ev.id}/view`}
-              className="btn btn-outline"
-            >
-              View
-            </Link>
+                <Link
+                  to={`/evaluation/${ev.id}/view`}
+                  className="btn btn-outline"
+                >
+                  View
+                </Link>
 
-            <button
-              className="btn btn-primary"
-              onClick={async () => {
-                try {
-                  await api.post(
-                    `/evaluations/${ev.id}/approve`
-                  )
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    try {
+                      await api.post(`/evaluations/${ev.id}/approve`)
 
-                  const [pRes, aRes] =
-                    await Promise.all([
-                      api.get<Evaluation[]>(
-                        '/evaluations/pending'
-                      ),
-                      api.get<Evaluation[]>(
-                        '/evaluations/approved'
-                      ),
-                    ])
+                      const [pRes, aRes] = await Promise.all([
+                        api.get<Evaluation[]>('/evaluations/pending'),
+                        api.get<Evaluation[]>('/evaluations/approved'),
+                      ])
 
-                  setPending(pRes.data)
-                  setApproved(aRes.data)
+                      setPending(pRes.data)
+                      setApproved(aRes.data)
 
-                  setMessage({
-                    type: 'success',
-                    text:
-                      'Evaluation approved successfully.',
-                  })
-                } catch {
-                  setMessage({
-                    type: 'error',
-                    text: 'Approval failed.',
-                  })
-                }
-              }}
-            >
-              Approve
-            </button>
-          </div>
+                      setMessage({
+                        type: 'success',
+                        text: 'Evaluation approved successfully.',
+                      })
+                    } catch {
+                      setMessage({
+                        type: 'error',
+                        text: 'Approval failed.',
+                      })
+                    }
+                  }}
+                >
+                  Approve
+                </button>
+
+                <button
+                  className="btn btn-danger"
+                  onClick={() => deleteEvaluation(ev.id)}
+                >
+                  Delete
+                </button>
+              </div>
         </div>
       ))}
     </div>
@@ -260,8 +288,22 @@ const approveSelected = async () => {
                         <td style={{ fontWeight: 500 }}>{ev.total_points ?? 0}</td>
                         <td>{(ev as unknown as { approved_at?: string }).approved_at ?? '—'}</td>
                         <td>
-                          <Link to={`/evaluation/${ev.id}/view`} className="link">View</Link>
-                        </td>
+                          <Link
+                            to={`/evaluation/${ev.id}/view`}
+                            className="link"
+                          >
+                            View
+                          </Link>
+
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => deleteEvaluation(ev.id)}
+                            style={{ marginLeft: '10px' }}
+                          >
+                            Delete
+                          </button>
+                      </td>
                       </tr>
                     ))
                   )}
