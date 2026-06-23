@@ -131,6 +131,9 @@ export default function EvaluationForm() {
     }
   }, [modules])
 /*
+// TODO:
+// Re-enable score persistence without triggering infinite re-renders.
+// Currently computed scores are displayed correctly but not saved in DB.
   useEffect(() => {
     form.setValue('modules.student_feedback.points', computed.student_feedback, { shouldDirty: false })
     form.setValue('modules.conference_articles.points', computed.conference_articles, { shouldDirty: false })
