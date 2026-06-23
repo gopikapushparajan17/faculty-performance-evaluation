@@ -130,7 +130,7 @@ export default function EvaluationForm() {
       total,
     }
   }, [modules])
-
+/*
   useEffect(() => {
     form.setValue('modules.student_feedback.points', computed.student_feedback, { shouldDirty: false })
     form.setValue('modules.conference_articles.points', computed.conference_articles, { shouldDirty: false })
@@ -145,7 +145,7 @@ export default function EvaluationForm() {
     form.setValue('modules.fdp_organized.points', computed.fdp_organized, { shouldDirty: false })
     form.setValue('total_points', computed.total, { shouldDirty: false })
   }, [computed])
-
+*/
   useEffect(() => {
     if (editId) {
       api.get<Evaluation>(`/evaluations/${editId}`).then(({ data }) => {
@@ -158,7 +158,7 @@ export default function EvaluationForm() {
     } else if (facultyId) {
       form.setValue('faculty_id', facultyId)
     }
-  }, [editId, facultyId, form])
+  }, [editId])
 
   const onSubmit = async (data: FormValues) => {
     const payload: FormValues = {
@@ -278,7 +278,7 @@ export default function EvaluationForm() {
           {user?.role === 'faculty' && form.watch('status') === 'draft' && form.getValues().id && (
             <button type="button" onClick={submitEval} className="btn btn-secondary">Submit Evaluation</button>
           )}
-          <button type="button" onClick={() => navigate(-1)} className="btn btn-outline">Cancel</button>
+          <button type="button" onClick={() => navigate('/dashboard')} className="btn btn-outline">Cancel</button>
         </div>
       </form>
     </div>

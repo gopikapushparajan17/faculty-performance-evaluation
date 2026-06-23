@@ -250,10 +250,10 @@ def get_evaluation(eid: str):
         faculty = get_faculty(str(e.faculty_id))
 
         return Evaluation(
-            id=str(e.id),
-            faculty_id=str(e.faculty_id),
+            id=e.id,
+            faculty_id=e.faculty_id,
             faculty=faculty,
-            ef_id=str(e.ef_id),
+            ef_id=e.ef_id,
             academic_year=e.academic_year or "",
             status=e.status or "draft",
             modules=EvaluationModules(**(e.modules or {})),
