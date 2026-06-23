@@ -174,14 +174,10 @@ def get_eval(eid: str, user: User = Depends(get_current_user)):
 
     if not ev:
         raise HTTPException(404, "Evaluation not found")
-    print("USER ID =", user.id, type(user.id))
-    print("EV EF_ID =", ev.ef_id, type(ev.ef_id))
-    print("COMPARE =", ev.ef_id != user.id)
-    print("EVAL ID =", ev.id)
-    print("BEFORE ACCESS CHECK")
+    
     if user.role == "faculty" and int(ev.ef_id) != int(user.id):
         raise HTTPException(403, "Access denied")
-    print("RETURNING EVALUATION")
+    
     return ev
 
 @router.post("", response_model=Evaluation)
