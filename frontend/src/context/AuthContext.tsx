@@ -23,18 +23,20 @@ interface AuthContextValue extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
 const TOKEN_KEY = 'faculty_eval_token'
 const USER_KEY = 'faculty_eval_user'
+
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, token: null, loading: true })
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    setState({ user: null, token: null, loading: false })
-  }, [])
+  sessionStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(USER_KEY)
+  delete api.defaults.headers.common.Authorization
+  setState({ user: null, token: null, loading: false })
+}, [])
 
   const login = useCallback(async (email: string, password: string, collegeId?: string) => {
     const { data } = await api.post<{ access_token: string; token_type: string; user: User }>('/auth/login', {
@@ -44,14 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     const token = data.access_token
     const user = data.user
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
+    sessionStorage.setItem(TOKEN_KEY, token)
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user))
     setState({ user, token, loading: false })
-  }, [])
+    }, [])
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY)
-    const saved = localStorage.getItem(USER_KEY)
+    const token = sessionStorage.getItem(TOKEN_KEY)
+    const saved = sessionStorage.getItem(USER_KEY)
+
     if (token && saved) {
       try {
         const user = JSON.parse(saved) as User
@@ -63,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setState((s) => ({ ...s, loading: false }))
     }
-  }, [logout])
+    }, [logout])
 
   useEffect(() => {
     if (state.token) api.defaults.headers.common.Authorization = `Bearer ${state.token}`
