@@ -19,18 +19,63 @@ export default function EvaluationView() {
   }, [evaluationId])
 
   const approveAsHod = async () => {
-    if (!evaluationId) return
-    try {
-      await api.post(`/evaluations/${evaluationId}/approve`)
-      setEvalData((e) => (e ? { ...e, status: 'approved' } : null))
-      alert('Evaluation approved.')
-    } catch (err: unknown) {
-      const detail = err && typeof err === 'object' && 'response' in err
+  if (!evaluationId) return
+
+  try {
+    await api.post(`/evaluations/${evaluationId}/approve`)
+
+    setEvalData((e) =>
+      e
+        ? {
+            ...e,
+            status: 'approved',
+          }
+        : null
+    )
+
+    alert('Evaluation approved.')
+  } catch (err: unknown) {
+    const detail =
+      err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
         : null
-      alert(typeof detail === 'string' ? detail : 'Approval failed.')
-    }
+
+    alert(typeof detail === 'string' ? detail : 'Approval failed.')
   }
+}
+
+const rejectAsHod = async () => {
+  if (!evaluationId) return
+
+  const reason = window.prompt('Enter rejection reason:')
+
+  if (!reason?.trim()) return
+
+  try {
+    await api.post(`/evaluations/${evaluationId}/reject`, {
+      reason,
+    })
+
+    setEvalData((e) =>
+      e
+        ? {
+            ...e,
+            status: 'rejected',
+            reject_reason: reason,
+          }
+        : null
+    )
+
+    alert('Evaluation rejected.')
+  } catch (err: unknown) {
+    const detail =
+      err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null
+
+    alert(typeof detail === 'string' ? detail : 'Rejection failed.')
+  }
+}
 
   if (loading || !evalData) return <div className="loading-text">Loading...</div>
 
@@ -131,13 +176,23 @@ export default function EvaluationView() {
 
         <div className="form-actions">
           {canHodApprove && (
-            <button
-              type="button"
-              onClick={approveAsHod}
-              className="btn btn-success"
-            >
-              Approve
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={approveAsHod}
+                className="btn btn-success"
+              >
+                Approve
+              </button>
+
+              <button
+                type="button"
+                onClick={rejectAsHod}
+                className="btn btn-danger"
+              >
+                Reject
+              </button>
+            </>
           )}
 
           {user?.role === 'hod' && evalData.status === 'approved' && (

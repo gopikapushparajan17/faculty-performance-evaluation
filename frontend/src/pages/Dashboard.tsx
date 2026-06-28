@@ -248,6 +248,39 @@ const approveSelected = async () => {
                 >
                   Approve
                 </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={async () => {
+                    const reason = prompt("Enter rejection reason:")
+                    if (!reason) return
+
+                    try {
+                      await api.post(`/evaluations/${ev.id}/reject`, {
+                        reason,
+                      })
+
+                      const [pRes, aRes] = await Promise.all([
+                        api.get<Evaluation[]>('/evaluations/pending'),
+                        api.get<Evaluation[]>('/evaluations/approved'),
+                      ])
+
+                      setPending(pRes.data)
+                      setApproved(aRes.data)
+
+                      setMessage({
+                        type: 'success',
+                        text: 'Evaluation rejected successfully.',
+                      })
+                    } catch {
+                      setMessage({
+                        type: 'error',
+                        text: 'Rejection failed.',
+                      })
+                    }
+                  }}
+                >
+                  Reject
+                </button>
 
                 <button
                   className="btn btn-danger"

@@ -313,3 +313,38 @@ def delete_eval(eid: str, _: User = Depends(require_role("hod"))):
         raise HTTPException(404, "Evaluation not found")
 
     return {"message": "Evaluation deleted successfully"}
+
+@router.post("/{eid}/reject")
+def hod_reject(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("hod")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Invalid evaluation ID")
+
+    if ev.status == "approved":
+        raise HTTPException(400, "Approved evaluations cannot be rejected")
+
+    if ev.status == "rejected":
+        raise HTTPException(409, "Evaluation is already rejected")
+
+    if ev.status != "pending":
+        raise HTTPException(400, "Only pending evaluations can be rejected")
+
+    reason = body.get("reason", "").strip()
+
+    if not reason:
+        raise HTTPException(400, "Rejection reason is required")
+
+    update_evaluation(
+        eid,
+        {
+            "status": "rejected",
+            "reject_reason": reason,
+        },
+    )
+
+    return {"status": "rejected"}
