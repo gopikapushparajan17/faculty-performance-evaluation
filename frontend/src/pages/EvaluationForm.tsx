@@ -164,12 +164,71 @@ export default function EvaluationForm() {
   }, [editId])
 
   const onSubmit = async (data: FormValues) => {
-    const payload: FormValues = {
-      ...data,
-      faculty_id: facultyId ?? data.faculty_id,
-      modules: data.modules ?? defaultModules,
-      total_points: computed.total,
-    }
+    const modules = {
+    ...(data.modules ?? defaultModules),
+
+    student_feedback: {
+      ...(data.modules?.student_feedback ?? defaultModules.student_feedback),
+      points: computed.student_feedback,
+    },
+
+    conference_articles: {
+      ...(data.modules?.conference_articles ?? defaultModules.conference_articles),
+      points: computed.conference_articles,
+    },
+
+    book_chapters: {
+      ...(data.modules?.book_chapters ?? defaultModules.book_chapters),
+      points: computed.book_chapters,
+    },
+
+    books: {
+      ...(data.modules?.books ?? defaultModules.books),
+      points: computed.books,
+    },
+
+    ipr: {
+      ...(data.modules?.ipr ?? defaultModules.ipr),
+      points: computed.ipr,
+    },
+
+    funded_projects: {
+      ...(data.modules?.funded_projects ?? defaultModules.funded_projects),
+      points: computed.funded_projects,
+    },
+
+    fdp_attended: {
+      ...(data.modules?.fdp_attended ?? defaultModules.fdp_attended),
+      points: computed.fdp_attended,
+    },
+
+    talks_delivered: {
+      ...(data.modules?.talks_delivered ?? defaultModules.talks_delivered),
+      points: computed.talks_delivered,
+    },
+
+    departmental_activities: {
+      ...(data.modules?.departmental_activities ?? defaultModules.departmental_activities),
+      points: computed.departmental_activities,
+    },
+
+    institutional_activities: {
+      ...(data.modules?.institutional_activities ?? defaultModules.institutional_activities),
+      points: computed.institutional_activities,
+    },
+
+    fdp_organized: {
+      ...(data.modules?.fdp_organized ?? defaultModules.fdp_organized),
+      points: computed.fdp_organized,
+    },
+}
+
+const payload: FormValues = {
+  ...data,
+  faculty_id: facultyId ?? data.faculty_id,
+  modules,
+  total_points: computed.total,
+}
   
     if (isNew) {
       const { data: ev } = await api.post<Evaluation>('/evaluations', {
