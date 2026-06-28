@@ -9,6 +9,7 @@ from app.crud import (
     update_evaluation,
     list_evaluations_all,
     delete_evaluation,
+    get_evaluation_by_faculty_and_year,
 )
 from app.crud import (
     create_evaluation,
@@ -186,6 +187,18 @@ def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
     body["modules"] = mod
     body["ef_id"] = user.id
     body["status"] = "pending"
+
+    existing = get_evaluation_by_faculty_and_year(
+        int(body["faculty_id"]),
+        body["academic_year"],
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Evaluation already exists for this academic year.",
+        )
+
     return create_evaluation(body)
 
 

@@ -268,6 +268,20 @@ def get_evaluation(eid: str):
 
     finally:
         db.close()
+def get_evaluation_by_faculty_and_year(faculty_id: int, academic_year: str):
+    db = SessionLocal()
+
+    try:
+        return (
+            db.query(EvaluationDB)
+            .filter(
+                EvaluationDB.faculty_id == faculty_id,
+                EvaluationDB.academic_year == academic_year,
+            )
+            .first()
+        )
+    finally:
+        db.close()
 
 
 def list_evaluations_all():
