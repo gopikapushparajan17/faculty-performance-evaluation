@@ -135,6 +135,14 @@ def list_pending(_: User = Depends(require_role("hod"))):
 def list_approved(_: User = Depends(require_role("hod"))):
     return [e for e in list_evaluations_all() if e.status == "approved"]
 
+@router.get("/rejected", response_model=list[Evaluation])
+def list_rejected(_: User = Depends(require_role("hod"))):
+    return [
+        e
+        for e in list_evaluations_all()
+        if e.status == "rejected"
+    ]
+
 
 @router.get("/mine")
 def list_my_evaluations(user: User = Depends(require_role("faculty"))):

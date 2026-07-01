@@ -8,6 +8,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [pending, setPending] = useState<Evaluation[]>([])
   const [approved, setApproved] = useState<Evaluation[]>([])
+  const [rejected, setRejected] = useState<Evaluation[]>([])
   const [mine, setMine] = useState<Evaluation[]>([])
   const [profile, setProfile] = useState<FacultyProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -25,12 +26,15 @@ export default function Dashboard() {
         setSelectedPending(null)
 
         if (user?.role === 'hod') {
-          const [pRes, aRes] = await Promise.all([
+          const [pRes, aRes, rRes] = await Promise.all([
             api.get<Evaluation[]>('/evaluations/pending'),
             api.get<Evaluation[]>('/evaluations/approved'),
+            api.get<Evaluation[]>('/evaluations/rejected'),
           ])
+
           setPending(pRes.data)
           setApproved(aRes.data)
+          setRejected(rRes.data)
           if (pRes.data.length > 0) {
             setMessage({ type: 'success', text: `Pending evaluations: ${pRes.data.length}` })
           }
@@ -337,6 +341,65 @@ const approveSelected = async () => {
                             Delete
                           </button>
                       </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section className="section">
+            <h2 className="section-title">Rejected Evaluations</h2>
+
+            <div className="card table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Faculty</th>
+                    <th>Employee ID</th>
+                    <th>Total Points</th>
+                    <th>Rejected Reason</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rejected.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="td-muted">
+                        No rejected evaluations yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    rejected.map((ev) => (
+                      <tr key={ev.id}>
+                        <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+
+                        <td>{ev.faculty?.employee_id ?? "—"}</td>
+
+                        <td style={{ fontWeight: 500 }}>
+                          {ev.total_points ?? 0}
+                        </td>
+
+                        <td>{ev.reject_reason ?? "—"}</td>
+
+                        <td>
+                          <Link
+                            to={`/evaluation/${ev.id}/view`}
+                            className="link"
+                          >
+                            View
+                          </Link>
+
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => deleteEvaluation(ev.id)}
+                            style={{ marginLeft: "10px" }}
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
