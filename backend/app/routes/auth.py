@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends,HTTPException
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.database import get_user_by_email, users_db
+from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter()
 
@@ -47,4 +48,28 @@ def login(req: LoginRequest):
         "access_token": token,
         "token_type": "bearer",
         "user": UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, department=user.department),
+    }
+
+@router.post("/token")
+def login_for_swagger(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_by_email(form_data.username)
+
+    if (
+        not user
+        or not user.password_hash
+        or not verify_password(form_data.password, user.password_hash)
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
+
+    token = create_access_token({
+        "sub": user.id,
+        "role": user.role,
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
     }

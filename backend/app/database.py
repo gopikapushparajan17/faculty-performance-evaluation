@@ -167,7 +167,7 @@ def _seed():
 
     for u in [
         User(id="1", email="hod@demo.com", name="HOD User", role="hod", department="CSE", password_hash=_hash("demo123")),
-        User(id="2", email="faculty@demo.com", name="Faculty User", role="faculty", department="CSE", password_hash=_hash("demo123")),
+        User(id="2", email="faculty@demo.com", name="Marc Shapiro", role="faculty", department="CSE", password_hash=_hash("demo123")),
         User(id="3", email="principal@demo.com", name="Principal User", role="principal", password_hash=_hash("demo123")),
     ]:
         users_db[u.email] = u
