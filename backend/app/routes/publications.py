@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
-from app.database import get_user_by_id
+from app.crud import get_user_by_id
 from app.deps import get_current_user
 from app.models import User
 from app.publication_verifier import verify_publication
@@ -26,7 +26,18 @@ def verify_publication_route(
     current_user: User = Depends(get_current_user),
 ):
     user = get_user_by_id(current_user.id)
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    return verify_publication(body.publication_url,  faculty=user,)
+    print("USER:", user)
+    print("BEFORE VERIFY")
+
+    result = verify_publication(
+        body.publication_url,
+        faculty=user,
+    )
+
+    print("AFTER VERIFY:", result)
+
+    return result

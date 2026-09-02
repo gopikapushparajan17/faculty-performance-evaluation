@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
@@ -12,8 +12,6 @@ export default function Dashboard() {
   const [mine, setMine] = useState<Evaluation[]>([])
   const [profile, setProfile] = useState<FacultyProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedPendingId, setSelectedPendingId] = useState<string>('')
-  const [selectedPending, setSelectedPending] = useState<Evaluation | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const location = useLocation()
   const stateMessage = location.state?.message
@@ -22,8 +20,6 @@ export default function Dashboard() {
     const load = async () => {
       try {
         setMessage(null)
-        setSelectedPendingId('')
-        setSelectedPending(null)
 
         if (user?.role === 'hod') {
           const [pRes, aRes, rRes] = await Promise.all([
@@ -65,12 +61,7 @@ export default function Dashboard() {
       window.history.replaceState({}, document.title)
     }
   }, [stateMessage])
-  
-  const selected = useMemo(() => pending.find((e) => e.id === selectedPendingId) ?? null, [pending, selectedPendingId])
 
-  useEffect(() => {
-  setSelectedPending(selected)
-}, [selected])
 
 if (loading) return <div className="loading-text">Loading...</div>
 
@@ -84,28 +75,6 @@ const approvedMine = mine.filter(
 const pendingMine = mine.filter(
   (e) => e.status === 'pending'
 ).length
-
-const approveSelected = async () => {
-    if (!selectedPendingId) return
-    setMessage(null)
-    try {
-      await api.post(`/evaluations/${selectedPendingId}/approve`)
-      const [pRes, aRes] = await Promise.all([
-        api.get<Evaluation[]>('/evaluations/pending'),
-        api.get<Evaluation[]>('/evaluations/approved'),
-      ])
-      setPending(pRes.data)
-      setApproved(aRes.data)
-      setSelectedPendingId('')
-      setSelectedPending(null)
-      setMessage({ type: 'success', text: 'Evaluation approved successfully.' })
-    } catch (err: unknown) {
-      const detail = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : null
-      setMessage({ type: 'error', text: typeof detail === 'string' ? detail : 'Approval failed due to an unexpected error.' })
-    }
-  }
   const deleteEvaluation = async (id: string) => {
   const confirmed = window.confirm(
     'Are you sure you want to delete this evaluation?'

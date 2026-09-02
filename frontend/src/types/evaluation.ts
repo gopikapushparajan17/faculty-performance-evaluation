@@ -17,11 +17,57 @@ export interface StudentFeedbackData {
   points: number
 }
 
-// Module 2: Journal Index (disabled)
+export interface JournalIndexVerification {
+  publication_found?: boolean
+  doi?: string
+  scopus_eid?: string
+  publication_type?: string
+  is_conference_paper?: boolean
+
+  title?: string
+
+  authors?: Array<{
+    given?: string
+    family?: string
+    full_name?: string
+    orcid?: string
+    affiliations?: string[]
+  }>
+
+  journal?: string
+  issn?: string
+  eissn?: string
+  isbn?: string
+  publisher?: string
+  source_url?: string
+
+  error?: string | null
+
+  author_match?: boolean
+  matched_author?: string | null
+  author_match_error?: string
+
+  scopus_status?: string
+  scopus_evidence_url?: string | null
+
+  scopus_source?: {
+    status?: string
+    source_title?: string
+    issn?: string
+    eissn?: string
+    coverage?: string
+    active?: boolean
+    source_type?: string
+    matched_by?: string
+    message?: string
+  }
+}
+
 export interface JournalIndexData {
   value: string
   title?: string
   scopus_link?: string
+  verification?: JournalIndexVerification
 }
 
 // Module 3: Conference Articles (max 4, 4 pts each)

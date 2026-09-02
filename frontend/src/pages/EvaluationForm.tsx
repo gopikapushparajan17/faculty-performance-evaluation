@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import ModuleCard from '../components/ModuleCard'
@@ -47,6 +47,10 @@ export default function EvaluationForm() {
   const { evaluationId, facultyId } = useParams<{ evaluationId?: string; facultyId?: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  const [verificationLoading, setVerificationLoading] = useState(false)
+  const [verificationError, setVerificationError] = useState('')
+  
   const isNew = !evaluationId
   const editId = evaluationId
 
@@ -254,6 +258,44 @@ export default function EvaluationForm() {
   }
 }
 
+const verifyJournalPublication = async () => {
+  const url = form.getValues('modules.journal_index.scopus_link')?.trim()
+
+  if (!url) {
+    setVerificationError('Please enter a Scopus publication link first.')
+    return
+  }
+
+  setVerificationLoading(true)
+  setVerificationError('')
+
+  try {
+    const { data } = await api.post('/publications/verify', {
+      publication_url: url,
+    })
+
+    form.setValue(
+      'modules.journal_index.verification',
+      data,
+      {
+        shouldDirty: true,
+      }
+    )
+  } catch (err: any) {
+    console.error('Publication verification failed:', err)
+
+    const detail = err?.response?.data?.detail
+
+    setVerificationError(
+      typeof detail === 'string'
+        ? detail
+        : 'Publication verification failed. Please check the link and try again.'
+    )
+  } finally {
+    setVerificationLoading(false)
+  }
+}
+
   const submitEval = async () => {
     const data = form.getValues()
     if (!data.id) {
@@ -288,28 +330,210 @@ export default function EvaluationForm() {
 
         {/* Module 2: Journal Index (Scopus required when filled) */}
         <ModuleCard title="2. Journal Index" points={0} defaultOpen>
-          <div className="form-row">
-            <input
-              type="text"
-              placeholder="Journal Title"
-              {...form.register('modules.journal_index.title')}
-              className="input input-flex"
-            />
-            <ProofUpload
-              value={form.watch('modules.journal_index.scopus_link')}
-              onChange={(url) => form.setValue('modules.journal_index.scopus_link', url)}
-              prefix="journal_index"
-              mode="scopus"
-            />
-          </div>
-          <input
-            type="text"
-            placeholder="Journal Index (optional text)"
-            {...form.register('modules.journal_index.value')}
-            className="input"
-            style={{ width: '100%', marginTop: '0.75rem' }}
-          />
-        </ModuleCard>
+
+<div className="form-row">
+
+  <input
+    type="text"
+    placeholder="Journal Title"
+    {...form.register('modules.journal_index.title')}
+    className="input input-flex"
+  />
+
+  <ProofUpload
+    value={form.watch('modules.journal_index.scopus_link')}
+    onChange={(url) => {
+      form.setValue(
+        'modules.journal_index.scopus_link',
+        url
+      )
+
+      form.setValue(
+        'modules.journal_index.verification',
+        undefined
+      )
+
+      setVerificationError('')
+    }}
+    prefix="journal_index"
+    mode="scopus"
+  />
+
+  <button
+    type="button"
+    onClick={verifyJournalPublication}
+    disabled={
+      verificationLoading ||
+      !form.watch('modules.journal_index.scopus_link')
+    }
+    className="btn btn-secondary"
+  >
+    {verificationLoading ? 'Verifying...' : 'Verify'}
+  </button>
+
+</div>
+
+{verificationError && (
+  <div
+    style={{
+      marginTop: '0.75rem',
+      color: '#dc2626',
+    }}
+  >
+    {verificationError}
+  </div>
+)}
+
+{form.watch('modules.journal_index.verification') && (
+  <div
+    style={{
+      marginTop: '1rem',
+      padding: '1rem',
+      border: '1px solid #d1d5db',
+      borderRadius: '8px',
+    }}
+  >
+
+    <h4 style={{ marginTop: 0 }}>
+      Publication Verification
+    </h4>
+
+    {form.watch('modules.journal_index.verification')
+      ?.publication_found ? (
+      <p>
+        <strong>Crossref:</strong> Publication found
+      </p>
+    ) : (
+      <p>
+        <strong>Crossref:</strong> Publication not found
+      </p>
+    )}
+
+    {form.watch('modules.journal_index.verification')?.title && (
+      <p>
+        <strong>Title:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.title}
+      </p>
+    )}
+
+    {form.watch('modules.journal_index.verification')?.journal && (
+      <p>
+        <strong>Journal:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.journal}
+      </p>
+    )}
+
+    {form.watch('modules.journal_index.verification')?.doi && (
+      <p>
+        <strong>DOI:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.doi}
+      </p>
+    )}
+
+    {form.watch('modules.journal_index.verification')?.issn && (
+      <p>
+        <strong>ISSN:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.issn}
+      </p>
+    )}
+
+    {form.watch('modules.journal_index.verification')
+      ?.publisher && (
+      <p>
+        <strong>Publisher:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.publisher}
+      </p>
+    )}
+
+    <hr />
+
+    <p>
+      <strong>Author Match:</strong>{' '}
+      {form.watch('modules.journal_index.verification')
+        ?.author_match
+        ? 'Yes'
+        : 'No'}
+    </p>
+
+    {form.watch('modules.journal_index.verification')
+      ?.matched_author && (
+      <p>
+        <strong>Matched Author:</strong>{' '}
+        {form.watch('modules.journal_index.verification')
+          ?.matched_author}
+      </p>
+    )}
+
+    <hr />
+
+    <p>
+      <strong>Scopus Status:</strong>{' '}
+      {form.watch('modules.journal_index.verification')
+        ?.scopus_status || 'Not available'}
+    </p>
+
+    {form.watch('modules.journal_index.verification')
+      ?.scopus_source && (
+      <>
+        <p>
+          <strong>Source:</strong>{' '}
+          {form.watch('modules.journal_index.verification')
+            ?.scopus_source?.source_title || 'Not available'}
+        </p>
+
+        <p>
+          <strong>Coverage:</strong>{' '}
+          {form.watch('modules.journal_index.verification')
+            ?.scopus_source?.coverage || 'Not available'}
+        </p>
+
+        <p>
+          <strong>Active:</strong>{' '}
+          {form.watch('modules.journal_index.verification')
+            ?.scopus_source?.active === undefined
+            ? 'Not available'
+            : form.watch('modules.journal_index.verification')
+                ?.scopus_source?.active
+              ? 'Yes'
+              : 'No'}
+        </p>
+
+        <p>
+          <strong>Source Type:</strong>{' '}
+          {form.watch('modules.journal_index.verification')
+            ?.scopus_source?.source_type || 'Not available'}
+        </p>
+
+        <p>
+          <strong>Matched By:</strong>{' '}
+          {form.watch('modules.journal_index.verification')
+            ?.scopus_source?.matched_by || 'Not available'}
+        </p>
+      </>
+    )}
+
+    {form.watch('modules.journal_index.verification')?.error && (
+      <p>
+        <strong>Message:</strong>{' '}
+        {form.watch('modules.journal_index.verification')?.error}
+      </p>
+    )}
+
+  </div>
+)}
+
+<input
+  type="text"
+  placeholder="Journal Index (optional text)"
+  {...form.register('modules.journal_index.value')}
+  className="input"
+  style={{
+    width: '100%',
+    marginTop: '0.75rem',
+  }}
+/>
+
+</ModuleCard>
 
         {/* Module 3: Conference Articles - max 4, 4 pts each */}
         <ConferenceArticlesModule form={form} points={computed.conference_articles} />
