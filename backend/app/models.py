@@ -31,21 +31,23 @@ class JournalIndexData(BaseModel):
     value: str = ""
     title: str = ""
     scopus_link: str = ""
+    verification: Optional[dict] = None
 
 
 class ConferenceArticle(BaseModel):
     title: str = ""
     proof_file: Optional[str] = None
+    verification: Optional[dict] = None
 
 
 class ConferenceArticlesData(BaseModel):
     entries: list[ConferenceArticle] = []
     points: int = 0
 
-
 class BookChapter(BaseModel):
     title: str = ""
     proof_file: Optional[str] = None
+    verification: Optional[dict] = None
 
 
 class BookChaptersData(BaseModel):
