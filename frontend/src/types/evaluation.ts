@@ -74,6 +74,7 @@ export interface JournalIndexData {
 export interface ConferenceArticle {
   title: string
   proof_file?: string
+  verification?: JournalIndexVerification
 }
 export interface ConferenceArticlesData {
   entries: ConferenceArticle[]
@@ -84,6 +85,7 @@ export interface ConferenceArticlesData {
 export interface BookChapter {
   title: string
   proof_file?: string
+  verification?: JournalIndexVerification
 }
 export interface BookChaptersData {
   entries: BookChapter[]

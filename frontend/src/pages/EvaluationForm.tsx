@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import ModuleCard from '../components/ModuleCard'
@@ -50,6 +50,11 @@ export default function EvaluationForm() {
 
   const [verificationLoading, setVerificationLoading] = useState(false)
   const [verificationError, setVerificationError] = useState('')
+  const [conferenceVerificationLoading, setConferenceVerificationLoading] = useState<Record<number, boolean>>({})
+  const [conferenceVerificationError, setConferenceVerificationError] = useState<Record<number, string>>({})
+
+  const [bookChapterVerificationLoading, setBookChapterVerificationLoading] = useState<Record<number, boolean>>({})
+const [bookChapterVerificationError, setBookChapterVerificationError] = useState<Record<number, string>>({})
   
   const isNew = !evaluationId
   const editId = evaluationId
@@ -277,9 +282,7 @@ const verifyJournalPublication = async () => {
     form.setValue(
       'modules.journal_index.verification',
       data,
-      {
-        shouldDirty: true,
-      }
+      { shouldDirty: true }
     )
   } catch (err: any) {
     console.error('Publication verification failed:', err)
@@ -295,6 +298,107 @@ const verifyJournalPublication = async () => {
     setVerificationLoading(false)
   }
 }
+  const verifyConferencePublication = async (index: number) => {
+    const url = form
+      .getValues(`modules.conference_articles.entries.${index}.proof_file`)
+      ?.trim()
+
+    if (!url) {
+      setConferenceVerificationError((prev) => ({
+        ...prev,
+        [index]: 'Please enter a Scopus publication link first.',
+      }))
+      return
+    }
+
+    setConferenceVerificationLoading((prev) => ({
+      ...prev,
+      [index]: true,
+    }))
+
+    setConferenceVerificationError((prev) => ({
+      ...prev,
+      [index]: '',
+    }))
+
+    try {
+      const { data } = await api.post('/publications/verify', {
+        publication_url: url,
+      })
+
+      form.setValue(
+        `modules.conference_articles.entries.${index}.verification`,
+        data,
+        { shouldDirty: true }
+      )
+    } catch (err: any) {
+      console.error('Conference publication verification failed:', err)
+      const detail = err?.response?.data?.detail
+      setConferenceVerificationError((prev) => ({
+        ...prev,
+        [index]:
+          typeof detail === 'string'
+            ? detail
+            : 'Publication verification failed. Please check the link and try again.',
+      }))
+    } finally {
+      setConferenceVerificationLoading((prev) => ({
+        ...prev,
+        [index]: false,
+      }))
+    }
+  }
+
+  const verifyBookChapterPublication = async (index: number) => {
+    const url = form
+      .getValues(`modules.book_chapters.entries.${index}.proof_file`)
+      ?.trim()
+
+    if (!url) {
+      setBookChapterVerificationError((prev) => ({
+        ...prev,
+        [index]: 'Please enter a Scopus publication link first.',
+      }))
+      return
+    }
+
+    setBookChapterVerificationLoading((prev) => ({
+      ...prev,
+      [index]: true,
+    }))
+
+    setBookChapterVerificationError((prev) => ({
+      ...prev,
+      [index]: '',
+    }))
+
+    try {
+      const { data } = await api.post('/publications/verify', {
+        publication_url: url,
+      })
+
+      form.setValue(
+        `modules.book_chapters.entries.${index}.verification`,
+        data,
+        { shouldDirty: true }
+      )
+    } catch (err: any) {
+      console.error('Book chapter publication verification failed:', err)
+      const detail = err?.response?.data?.detail
+      setBookChapterVerificationError((prev) => ({
+        ...prev,
+        [index]:
+          typeof detail === 'string'
+            ? detail
+            : 'Publication verification failed. Please check the link and try again.',
+      }))
+    } finally {
+      setBookChapterVerificationLoading((prev) => ({
+        ...prev,
+        [index]: false,
+      }))
+    }
+  }
 
   const submitEval = async () => {
     const data = form.getValues()
@@ -359,7 +463,7 @@ const verifyJournalPublication = async () => {
     mode="scopus"
   />
 
-  <button
+<button
     type="button"
     onClick={verifyJournalPublication}
     disabled={
@@ -369,6 +473,20 @@ const verifyJournalPublication = async () => {
     className="btn btn-secondary"
   >
     {verificationLoading ? 'Verifying...' : 'Verify'}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => {
+      form.setValue('modules.journal_index.title', '')
+      form.setValue('modules.journal_index.scopus_link', '')
+      form.setValue('modules.journal_index.value', '')
+      form.setValue('modules.journal_index.verification', undefined)
+      setVerificationError('')
+    }}
+    className="remove-link"
+  >
+    Remove
   </button>
 
 </div>
@@ -536,10 +654,24 @@ const verifyJournalPublication = async () => {
 </ModuleCard>
 
         {/* Module 3: Conference Articles - max 4, 4 pts each */}
-        <ConferenceArticlesModule form={form} points={computed.conference_articles} />
+        <ConferenceArticlesModule
+  form={form}
+  points={computed.conference_articles}
+  verifyPublication={verifyConferencePublication}
+  verificationLoading={conferenceVerificationLoading}
+  verificationError={conferenceVerificationError}
+  setVerificationError={setConferenceVerificationError}
+/>
 
         {/* Module 4: Book Chapters - max 4, 6 pts each */}
-        <BookChaptersModule form={form} points={computed.book_chapters} />
+        <BookChaptersModule
+  form={form}
+  points={computed.book_chapters}
+  verifyPublication={verifyBookChapterPublication}
+  verificationLoading={bookChapterVerificationLoading}
+  verificationError={bookChapterVerificationError}
+  setVerificationError={setBookChapterVerificationError}
+/>
 
         {/* Module 5: Books - max 3, authored 20 / edited 10 */}
         <BooksModule form={form} points={computed.books} />
@@ -581,44 +713,244 @@ const verifyJournalPublication = async () => {
   )
 }
 
-function ConferenceArticlesModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.conference_articles.entries' })
+function ConferenceArticlesModule({
+  form,
+  points,
+  verifyPublication,
+  verificationLoading,
+  verificationError,
+  setVerificationError,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+  verifyPublication: (index: number) => Promise<void>
+  verificationLoading: Record<number, boolean>
+  verificationError: Record<number, string>
+  setVerificationError: Dispatch<SetStateAction<Record<number, string>>>
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.conference_articles.entries',
+  })
+
   return (
-    <ModuleCard title="3. Conference Articles (max 4, 4 pts each)" points={points} defaultOpen>
-      {fields.map((_, i) => (
-        <div key={i} className="form-row">
-          <input placeholder="Title" {...form.register(`modules.conference_articles.entries.${i}.title`)} className="input input-flex" />
-          <ProofUpload
-            value={form.watch(`modules.conference_articles.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.conference_articles.entries.${i}.proof_file`, url)}
-            prefix="conference_articles"
-            mode="scopus"
-          />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
-        </div>
-      ))}
-      {fields.length < 4 && <button type="button" onClick={() => append({ title: '' })} className="add-link">+ Add</button>}
+    <ModuleCard
+      title="3. Conference Articles (max 4, 4 pts each)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => {
+        const verification = form.watch(
+          `modules.conference_articles.entries.${i}.verification`
+        )
+
+        const proofFile = form.watch(
+          `modules.conference_articles.entries.${i}.proof_file`
+        )
+
+        return (
+          <div key={i} style={{ marginBottom: '1.5rem' }}>
+            <div className="form-row">
+              <input
+                placeholder="Title"
+                {...form.register(
+                  `modules.conference_articles.entries.${i}.title`
+                )}
+                className="input input-flex"
+              />
+
+              <ProofUpload
+                value={proofFile}
+                onChange={(url) => {
+                  form.setValue(
+                    `modules.conference_articles.entries.${i}.proof_file`,
+                    url
+                  )
+
+                  form.setValue(
+                    `modules.conference_articles.entries.${i}.verification`,
+                    undefined
+                  )
+
+                  setVerificationError((prev) => ({
+                    ...prev,
+                    [i]: '',
+                  }))
+                }}
+                prefix="conference_articles"
+                mode="scopus"
+              />
+
+              <button
+                type="button"
+                onClick={() => verifyPublication(i)}
+                disabled={!!verificationLoading[i] || !proofFile}
+                className="btn btn-secondary"
+              >
+                {verificationLoading[i]
+                  ? 'Verifying...'
+                  : 'Verify'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="remove-link"
+              >
+                Remove
+              </button>
+            </div>
+
+            {verificationError[i] && (
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  color: '#dc2626',
+                }}
+              >
+                {verificationError[i]}
+              </div>
+            )}
+
+            {verification && (
+              <PublicationVerificationResult
+                verification={verification}
+              />
+            )}
+          </div>
+        )
+      })}
+
+      {fields.length < 4 && (
+        <button
+          type="button"
+          onClick={() => append({ title: '' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function BookChaptersModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.book_chapters.entries' })
+function BookChaptersModule({
+  form,
+  points,
+  verifyPublication,
+  verificationLoading,
+  verificationError,
+  setVerificationError,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+  verifyPublication: (index: number) => Promise<void>
+  verificationLoading: Record<number, boolean>
+  verificationError: Record<number, string>
+  setVerificationError: Dispatch<SetStateAction<Record<number, string>>>
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.book_chapters.entries',
+  })
+
   return (
-    <ModuleCard title="4. Book Chapters (max 4, 6 pts each)" points={points} defaultOpen>
-      {fields.map((_, i) => (
-        <div key={i} className="form-row">
-          <input placeholder="Title" {...form.register(`modules.book_chapters.entries.${i}.title`)} className="input input-flex" />
-          <ProofUpload
-            value={form.watch(`modules.book_chapters.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.book_chapters.entries.${i}.proof_file`, url)}
-            prefix="book_chapters"
-            mode="scopus"
-          />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
-        </div>
-      ))}
-      {fields.length < 4 && <button type="button" onClick={() => append({ title: '' })} className="add-link">+ Add</button>}
+    <ModuleCard
+      title="4. Book Chapters (max 4, 6 pts each)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => {
+        const verification = form.watch(
+          `modules.book_chapters.entries.${i}.verification`
+        )
+
+        const proofFile = form.watch(
+          `modules.book_chapters.entries.${i}.proof_file`
+        )
+
+        return (
+          <div key={i} style={{ marginBottom: '1.5rem' }}>
+            <div className="form-row">
+              <input
+                placeholder="Title"
+                {...form.register(
+                  `modules.book_chapters.entries.${i}.title`
+                )}
+                className="input input-flex"
+              />
+
+              <ProofUpload
+                value={proofFile}
+                onChange={(url) => {
+                  form.setValue(
+                    `modules.book_chapters.entries.${i}.proof_file`,
+                    url
+                  )
+
+                  form.setValue(
+                    `modules.book_chapters.entries.${i}.verification`,
+                    undefined
+                  )
+
+                  setVerificationError((prev) => ({
+                    ...prev,
+                    [i]: '',
+                  }))
+                }}
+                prefix="book_chapters"
+                mode="scopus"
+              />
+
+              <button
+                type="button"
+                onClick={() => verifyPublication(i)}
+                disabled={!!verificationLoading[i] || !proofFile}
+                className="btn btn-secondary"
+              >
+                {verificationLoading[i]
+                  ? 'Verifying...'
+                  : 'Verify'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="remove-link"
+              >
+                Remove
+              </button>
+            </div>
+
+            {verificationError[i] && (
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  color: '#dc2626',
+                }}
+              >
+                {verificationError[i]}
+              </div>
+            )}
+
+            {verification && (
+              <PublicationVerificationResult
+                verification={verification}
+              />
+            )}
+          </div>
+        )
+      })}
+
+      {fields.length < 4 && (
+        <button
+          type="button"
+          onClick={() => append({ title: '' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
@@ -800,5 +1132,118 @@ function FDPOrganizedModule({ form, points }: { form: ReturnType<typeof useForm<
       ))}
       {fields.length < 2 && <button type="button" onClick={() => append({ name: '', days: 0 })} className="add-link">+ Add</button>}
     </ModuleCard>
+  )
+}
+
+function PublicationVerificationResult({
+  verification,
+}: {
+  verification: any
+}) {
+  return (
+    <div
+      style={{
+        marginTop: '1rem',
+        padding: '1rem',
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+      }}
+    >
+      <h4 style={{ marginTop: 0 }}>
+        Publication Verification
+      </h4>
+
+      {verification?.publication_found ? (
+        <p>
+          <strong>Crossref:</strong> Publication found
+        </p>
+      ) : (
+        <p>
+          <strong>Crossref:</strong> Publication not found
+        </p>
+      )}
+
+      {verification?.title && (
+        <p>
+          <strong>Title:</strong> {verification.title}
+        </p>
+      )}
+
+      {verification?.journal && (
+        <p>
+          <strong>Journal:</strong> {verification.journal}
+        </p>
+      )}
+
+      {verification?.doi && (
+        <p>
+          <strong>DOI:</strong> {verification.doi}
+        </p>
+      )}
+
+      {verification?.issn && (
+        <p>
+          <strong>ISSN:</strong> {verification.issn}
+        </p>
+      )}
+
+      {verification?.publisher && (
+        <p>
+          <strong>Publisher:</strong> {verification.publisher}
+        </p>
+      )}
+
+      <hr />
+
+      <p>
+        <strong>Author Match:</strong>{' '}
+        {verification?.author_match ? 'Yes' : 'No'}
+      </p>
+
+      {verification?.matched_author && (
+        <p>
+          <strong>Matched Author:</strong>{' '}
+          {verification.matched_author}
+        </p>
+      )}
+
+      <hr />
+
+      <p>
+        <strong>Scopus Status:</strong>{' '}
+        {verification?.scopus_status || 'Not available'}
+      </p>
+
+      {verification?.scopus_source && (
+        <>
+          <p>
+            <strong>Source:</strong>{' '}
+            {verification.scopus_source.source_title ||
+              'Not available'}
+          </p>
+
+          <p>
+            <strong>Coverage:</strong>{' '}
+            {verification.scopus_source.coverage ||
+              'Not available'}
+          </p>
+
+          <p>
+            <strong>Active:</strong>{' '}
+            {verification.scopus_source.active === true
+              ? 'Yes'
+              : verification.scopus_source.active === false
+                ? 'No'
+                : 'Not available'}
+          </p>
+
+          <p>
+            <strong>Source Type:</strong>{' '}
+            {verification.scopus_source.source_type ||
+              'Not available'}
+          </p>
+        </>
+      )}
+    </div>
   )
 }
