@@ -170,23 +170,14 @@ def build_signature_section(content, styles) -> None:
     )
 
 
-def _append_image_or_fallback(content, styles, image_url):
-    file_path = image_url.lstrip("/")
-    abs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), file_path)
-    
-    ext = os.path.splitext(file_path)[1].lower()
-    if ext in ['.png', '.jpg', '.jpeg']:
-        if os.path.exists(abs_path):
-            try:
-                img = Image(abs_path, width=4*inch, height=3*inch, kind='proportional')
-                content.append(img)
-            except Exception:
-                content.append(Paragraph("Image unavailable", styles["Normal"]))
-        else:
-            content.append(Paragraph("Image unavailable", styles["Normal"]))
-    else:
-        filename = os.path.basename(file_path)
-        content.append(Paragraph(filename, styles["Normal"]))
+def _append_proof_link(content, styles, url):
+    if url.startswith("/uploads/"):
+        url = f"http://localhost:8000{url}"
+    elif url.startswith("uploads/"):
+        url = f"http://localhost:8000/{url}"
+        
+    link_html = f'<link href="{url}" color="blue"><u>View Proof</u></link>'
+    content.append(Paragraph(link_html, styles["Normal"]))
 
 
 def build_detailed_report(content, styles, modules) -> None:
@@ -240,7 +231,7 @@ def build_detailed_report(content, styles, modules) -> None:
                 if key in ["proof_file", "screenshot"]:
                     content.append(Paragraph(f"<b>{key_nice}:</b>", styles["Normal"]))
                     content.append(Spacer(1, 4))
-                    _append_image_or_fallback(content, styles, val)
+                    _append_proof_link(content, styles, val)
                 else:
                     content.append(Paragraph(f"<b>{key_nice}:</b> {val}", styles["Normal"]))
                 has_data = True
@@ -259,7 +250,7 @@ def build_detailed_report(content, styles, modules) -> None:
                 if key in ["proof_file", "screenshot"]:
                     content.append(Paragraph(f"<b>{key_nice}:</b>", styles["Normal"]))
                     content.append(Spacer(1, 4))
-                    _append_image_or_fallback(content, styles, val)
+                    _append_proof_link(content, styles, val)
                 else:
                     content.append(Paragraph(f"<b>{key_nice}:</b> {val}", styles["Normal"]))
             content.append(Spacer(1, 10))
