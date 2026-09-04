@@ -8,17 +8,11 @@ from app.crud import (
     get_faculty,
     update_evaluation,
     list_evaluations_all,
+    list_faculty,
     delete_evaluation,
     get_evaluation_by_faculty_and_year,
 )
-from app.crud import (
-    create_evaluation,
-    get_evaluation,
-    get_faculty,
-    update_evaluation,
-    list_evaluations_all,
-    list_faculty,
-)
+
 from app.deps import get_current_user, require_role
 from fastapi.responses import FileResponse
 from app.models import Evaluation, EvaluationModules, User

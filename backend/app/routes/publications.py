@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
-from app.crud import get_user_by_id
+from app.database import get_user_by_id
 from app.deps import get_current_user
 from app.models import User
 from app.publication_verifier import verify_publication

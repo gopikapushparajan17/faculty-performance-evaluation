@@ -167,7 +167,7 @@ def _seed():
 
     for u in [
         User(id="1", email="hod@demo.com", name="HOD User", role="hod", department="CSE", password_hash=_hash("demo123")),
-        User(id="2", email="faculty@demo.com", name="Faculty User", role="faculty", department="CSE", password_hash=_hash("demo123")),
+        User(id="2", email="faculty@demo.com", name="G. Kucsko", role="faculty", department="CSE", password_hash=_hash("demo123")),
         User(id="3", email="principal@demo.com", name="Principal User", role="principal", password_hash=_hash("demo123")),
     ]:
         users_db[u.email] = u
@@ -175,11 +175,31 @@ def _seed():
 
 _seed()
 
+# Seed demo faculty profile
+faculty_user = users_db.get("faculty@demo.com")
 
+if faculty_user and not faculty_db:
+    faculty_db["demo-faculty"] = FacultyProfile(
+        id="demo-faculty",
+        user_id=str(faculty_user.id),
+        department_name=faculty_user.department or "CSE",
+        employee_id="FAC001",
+        employee_name=faculty_user.name,
+        orcid_id="",
+        official_email=faculty_user.email,
+        phone_number="9999999999",
+    )
 def get_user_by_email(email: str) -> User | None:
     return users_db.get(email)
 
+def get_user_by_name(name: str) -> User | None:
+    name = name.strip().lower()
 
+    for user in users_by_id.values():
+        if user.name.strip().lower() == name:
+            return user
+
+    return None
 def get_user_by_id(uid: str) -> User | None:
     return users_by_id.get(uid)
 
@@ -194,6 +214,11 @@ def create_faculty(data: dict) -> FacultyProfile:
 def get_faculty(fid: str) -> FacultyProfile | None:
     return faculty_db.get(fid)
 
+def get_faculty_by_user_id(user_id: str) -> FacultyProfile | None:
+    for faculty in faculty_db.values():
+        if faculty.user_id == user_id:
+            return faculty
+    return None
 
 def list_faculty() -> list[FacultyProfile]:
     return list(faculty_db.values())

@@ -8,6 +8,7 @@ import os
 import re
 from urllib.parse import parse_qs, unquote, quote, urlparse
 from app.scopus_checker import check_scopus_source
+from app.wos_checker import check_web_of_science
 
 import requests
 
@@ -292,11 +293,12 @@ def verify_publication(publication_input, faculty=None):
         )
 
     result = _parse_work_message(
-    payload.get("message"),
-    doi=doi,
-    scopus_eid=scopus_eid,
-    source_url=source_url_out,
+        payload.get("message"),
+        doi=doi,
+        scopus_eid=scopus_eid,
+        source_url=source_url_out,
     )
+
 
     if faculty is not None:
         faculty_name = getattr(faculty, "name", None)
@@ -337,6 +339,9 @@ def verify_publication(publication_input, faculty=None):
 
     result["scopus_status"] = scopus_result.get("status")
     result["scopus_source"] = scopus_result
+    result["web_of_science"] = check_web_of_science(
+        result.get("doi")
+    )
 
     return result
 
