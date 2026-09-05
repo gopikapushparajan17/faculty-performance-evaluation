@@ -156,10 +156,10 @@ class EvaluationModules(BaseModel):
 
 
 class Evaluation(BaseModel):
-    id: Optional[int] = None
-    faculty_id: int
+    id: Optional[str] = None
+    faculty_id: str
     faculty: Optional[FacultyProfile] = None
-    ef_id: Optional[int] = None
+    ef_id: Optional[str] = None
     academic_year: str = ""
     status: str = "draft"  # draft | pending | approved | rejected
     modules: EvaluationModules = EvaluationModules()

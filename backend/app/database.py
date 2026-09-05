@@ -51,13 +51,14 @@ def _compute_total_points(modules: EvaluationModules) -> int:
       elif pct > 0:
           sf = 5
   total += sf
-
+  if _has_text(m.journal_index.title) and _has_text(m.journal_index.scopus_link):
+       total += 4
   if isinstance(m.conference_articles, ConferenceArticlesData):
-      valid = [
-          e for e in m.conference_articles.entries
-          if _has_text(e.title) and _is_valid_scopus(e.proof_file)
-      ]
-      total += min(len(valid), 4) * 4
+    valid = [
+        e for e in m.conference_articles.entries
+        if _has_text(e.title) and _has_text(e.proof_file)
+    ]
+    total += min(len(valid), 4) * 4
 
   if isinstance(m.book_chapters, BookChaptersData):
       valid = [
@@ -169,6 +170,7 @@ def _seed():
         User(id="1", email="hod@demo.com", name="HOD User", role="hod", department="CSE", password_hash=_hash("demo123")),
         User(id="2", email="faculty@demo.com", name="G. Kucsko", role="faculty", department="CSE", password_hash=_hash("demo123")),
         User(id="3", email="principal@demo.com", name="Principal User", role="principal", password_hash=_hash("demo123")),
+        User(id="4", email="facul3@demo.com", name="G. Kucsko", role="faculty", department="CSE", password_hash=_hash("demo123")),
     ]:
         users_db[u.email] = u
         users_by_id[u.id] = u
@@ -187,6 +189,20 @@ if faculty_user and not faculty_db:
         employee_name=faculty_user.name,
         orcid_id="",
         official_email=faculty_user.email,
+        phone_number="9999999999",
+    )
+
+kucsko_user = users_db.get("facul3@demo.com")
+
+if kucsko_user:
+    faculty_db["kucsko-faculty"] = FacultyProfile(
+        id="kucsko-faculty",
+        user_id=str(kucsko_user.id),
+        department_name=kucsko_user.department or "CSE",
+        employee_id="FAC002",
+        employee_name=kucsko_user.name,
+        orcid_id="",
+        official_email=kucsko_user.email,
         phone_number="9999999999",
     )
 def get_user_by_email(email: str) -> User | None:
@@ -235,10 +251,13 @@ def update_faculty(fid: str, data: dict) -> FacultyProfile | None:
 
 
 def create_evaluation(data: dict) -> Evaluation:
-    eid = str(uuid.uuid4())
+    eid = str(len(evaluations_db) + 1)
+
     mod = data.get("modules") or {}
     modules = EvaluationModules(**mod) if isinstance(mod, dict) else mod
+
     total_points = _compute_total_points(modules)
+
     ev = Evaluation(
         id=eid,
         faculty_id=data["faculty_id"],
@@ -248,8 +267,10 @@ def create_evaluation(data: dict) -> Evaluation:
         modules=modules,
         total_points=total_points,
     )
+
     ev.faculty = faculty_db.get(ev.faculty_id)
     evaluations_db[eid] = ev
+
     return ev
 
 

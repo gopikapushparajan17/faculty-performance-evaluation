@@ -2,16 +2,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from app.crud import (
-    create_evaluation,
+from app.database import (
     get_evaluation,
     get_faculty,
     update_evaluation,
     list_evaluations_all,
     list_faculty,
-    delete_evaluation,
-    get_evaluation_by_faculty_and_year,
 )
+from app.database import create_evaluation
 
 from app.deps import get_current_user, require_role
 from fastapi.responses import FileResponse
@@ -41,14 +39,14 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
 
     # Scopus required only for: Journal Index, Conference Articles, Book Chapters
     if _has_text(getattr(modules.journal_index, "title", "")) or _has_text(getattr(modules.journal_index, "value", "")):
-        if not _is_scopus(getattr(modules.journal_index, "scopus_link", "")):
-            missing.append("Journal Index requires a valid Scopus link.")
+        if not _has_text(getattr(modules.journal_index, "scopus_link", "")):
+            missing.append("Journal Index requires a publication link.")
 
     for e in modules.conference_articles.entries:
         if _has_text(e.title):
-            if not _is_scopus(e.proof_file):
-                missing.append("Conference Articles require Scopus links for filled titles.")
-                break
+            if not _has_text(e.proof_file):
+               missing.append("Conference Articles require a publication link for filled titles.")
+               break
 
     for e in modules.book_chapters.entries:
         if _has_text(e.title):
@@ -190,9 +188,13 @@ def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
     body["ef_id"] = user.id
     body["status"] = "pending"
 
-    existing = get_evaluation_by_faculty_and_year(
-        int(body["faculty_id"]),
-        body["academic_year"],
+    existing = next(
+        (
+            e for e in list_evaluations_all()
+            if str(e.faculty_id) == str(body["faculty_id"])
+            and e.academic_year == body["academic_year"]
+        ),
+        None,
     )
 
     if existing:
