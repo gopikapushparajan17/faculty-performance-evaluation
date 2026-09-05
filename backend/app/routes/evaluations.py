@@ -180,28 +180,13 @@ def get_eval(eid: str, user: User = Depends(get_current_user)):
         raise HTTPException(403, "Access denied")
     
     return ev
-
 @router.post("", response_model=Evaluation)
 def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
     mod = body.get("modules") or {}
+
     body["modules"] = mod
     body["ef_id"] = user.id
     body["status"] = "pending"
-
-    existing = next(
-        (
-            e for e in list_evaluations_all()
-            if str(e.faculty_id) == str(body["faculty_id"])
-            and e.academic_year == body["academic_year"]
-        ),
-        None,
-    )
-
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail="Evaluation already exists for this academic year.",
-        )
 
     return create_evaluation(body)
 

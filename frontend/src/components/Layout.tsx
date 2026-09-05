@@ -3,8 +3,6 @@ import { useAuth } from '../context/AuthContext'
 
 import {
   FaHome,
-  FaUser,
-  FaClipboardList,
   FaPlus,
   FaUserPlus,
   FaSignOutAlt,
@@ -61,35 +59,11 @@ export default function Layout() {
 
 {user?.role === 'faculty' && (
   <>
-    <NavLink
-      to="/faculty/profile"
-      className={({ isActive }) =>
-        isActive ? 'nav-link active' : 'nav-link'
-      }
-    >
-      <FaUser />
-      <span>My Profile</span>
-    </NavLink>
+    
 
-    <NavLink
-      to="/dashboard"
-      className={({ isActive }) =>
-        isActive ? 'nav-link active' : 'nav-link'
-      }
-    >
-      <FaClipboardList />
-      <span>My Evaluations</span>
-    </NavLink>
+    
 
-    <NavLink
-      to="/faculty/new"
-      className={({ isActive }) =>
-        isActive ? 'nav-link active' : 'nav-link'
-      }
-    >
-      <FaPlus />
-      <span>Start New Evaluation</span>
-    </NavLink>
+    
   </>
 )}
         </nav>
