@@ -61,6 +61,13 @@ export interface JournalIndexVerification {
     matched_by?: string
     message?: string
   }
+  web_of_science?: {
+    status?: string
+    source?: string
+    records_found?: number
+    message?: string
+    data?: unknown
+  }
 }
 
 export interface JournalIndexData {

@@ -10,7 +10,7 @@ interface ProofUploadProps {
   mode?: 'scopus' | 'file'
 }
 
-const SCOPUS_REGEX = /^https:\/\/www\.scopus\.com\/.*/i
+const PUBLICATION_REGEX = /^(https?:\/\/.+|10\.\d{4,9}\/\S+)$/i
 
 export default function ProofUpload({
   value,
@@ -65,8 +65,8 @@ export default function ProofUpload({
       onChange('')
       return
     }
-    if (!SCOPUS_REGEX.test(trimmed)) {
-      setError('Scopus URL must start with https://www.scopus.com/')
+    if (!PUBLICATION_REGEX.test(trimmed)) {
+      setError('Enter a valid DOI or publication URL')
       onChange('')
       return
     }

@@ -36,10 +36,13 @@ const defaultModules: EvaluationModules = {
 }
 
 const SCOPUS_REGEX = /^https:\/\/www\.scopus\.com\/.*/i
+const isValidScopus = (url?: string) =>
+  !!url && SCOPUS_REGEX.test(url.trim())
 
 const hasText = (v?: string) => !!v && v.trim().length > 0
-const isValidScopus = (url?: string) => !!url && SCOPUS_REGEX.test(url.trim())
-const isValidFileProof = (url?: string) => !!url && url.trim().length > 0 && !isValidScopus(url)
+const isValidPublicationUrl = (url?: string) =>
+  !!url && (/^https?:\/\/.+/i.test(url.trim()) || /^10\.\d{4,9}\/\S+$/i.test(url.trim()))
+const isValidFileProof = (url?: string) => !!url && url.trim().length > 0 && !isValidPublicationUrl(url)
 
 type FormValues = Omit<Evaluation, 'id' | 'created_at' | 'updated_at'> & { id?: string }
 
@@ -267,7 +270,7 @@ const verifyJournalPublication = async () => {
   const url = form.getValues('modules.journal_index.scopus_link')?.trim()
 
   if (!url) {
-    setVerificationError('Please enter a Scopus publication link first.')
+    setVerificationError('Please enter a DOI or publication URL first.')
     return
   }
 
@@ -433,7 +436,7 @@ const verifyJournalPublication = async () => {
         </ModuleCard>
 
         {/* Module 2: Journal Index (Scopus required when filled) */}
-        <ModuleCard title="2. Journal Index" points={0} defaultOpen>
+        <ModuleCard title="2. Journal Index" points={4} defaultOpen>
 
 <div className="form-row">
 
@@ -626,6 +629,24 @@ const verifyJournalPublication = async () => {
           <strong>Matched By:</strong>{' '}
           {form.watch('modules.journal_index.verification')
             ?.scopus_source?.matched_by || 'Not available'}
+        </p>
+        <hr />
+
+        <hr />
+
+        <p>
+          <strong>Web of Science Status:</strong>{' '}
+          {form.watch('modules.journal_index.verification')?.web_of_science?.status || 'Not available'}
+        </p>
+
+        <p>
+          <strong>Source:</strong>{' '}
+         {form.watch('modules.journal_index.verification')?.web_of_science?.source || 'Not available'}
+        </p>
+
+        <p>
+          <strong>Records Found:</strong>{' '}
+         {form.watch('modules.journal_index.verification')?.web_of_science?.records_found ?? 'Not available'}
         </p>
       </>
     )}
@@ -1230,11 +1251,7 @@ function PublicationVerificationResult({
 
           <p>
             <strong>Active:</strong>{' '}
-            {verification.scopus_source.active === true
-              ? 'Yes'
-              : verification.scopus_source.active === false
-                ? 'No'
-                : 'Not available'}
+            {verification.scopus_source.active || 'Not available'}
           </p>
 
           <p>
@@ -1244,6 +1261,26 @@ function PublicationVerificationResult({
           </p>
         </>
       )}
+      <hr />
+
+      <p>
+         <strong>Web of Science Status:</strong>{' '}
+        {verification?.web_of_science?.status || 'Not available'}
+      </p>
+
+      {verification?.web_of_science && (
+        <>
+          <p>
+            <strong>Source:</strong>{' '}
+            {verification.web_of_science.source || 'Not available'}
+          </p>
+
+          <p>
+            <strong>Records Found:</strong>{' '}
+            {verification.web_of_science.records_found ?? 'Not available'}
+       </p>
+  </>
+)}
     </div>
   )
 }
