@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -209,6 +209,7 @@ function EvidenceRow({
 export default function EvaluationView() {
   const { evaluationId } = useParams<{ evaluationId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
 
   const [evalData, setEvalData] = useState<Evaluation | null>(null)
@@ -217,12 +218,13 @@ export default function EvaluationView() {
   useEffect(() => {
     if (!evaluationId) return
 
+    setLoading(true)
     api
       .get<Evaluation>(`/evaluations/${evaluationId}`)
       .then(({ data }) => setEvalData(data))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [evaluationId])
+  }, [evaluationId, location.pathname])
 
   const approveAsHod = async () => {
     if (!evaluationId) return
@@ -417,9 +419,9 @@ export default function EvaluationView() {
             <div>
   <strong>Journal Index</strong>
 </div>
-<div>
-  {m?.journal_index?.verification?.scopus_status === 'source_covered' ? 4 : 0}
-</div>
+            <div>
+              {m?.journal_index?.points ?? 0}
+            </div>
             <div>
               <strong>Conference Articles</strong>
             </div>

@@ -18,7 +18,14 @@ def _has_text(v: str | None) -> bool:
   return bool(v and v.strip())
 
 
-def _compute_total_points(modules: EvaluationModules) -> int:
+def _journal_index_points(journal_index) -> int:
+    verification = journal_index.verification
+    if isinstance(verification, dict) and verification.get("scopus_status") == "source_covered":
+        return 4
+    return 0
+
+
+def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
   from app.models import (
       StudentFeedbackData,
       ConferenceArticlesData,
@@ -34,7 +41,6 @@ def _compute_total_points(modules: EvaluationModules) -> int:
   )
 
   m = modules
-  total = 0
 
   sf = 0
   if isinstance(m.student_feedback, StudentFeedbackData):
@@ -50,64 +56,63 @@ def _compute_total_points(modules: EvaluationModules) -> int:
           sf = 7
       elif pct > 0:
           sf = 5
-  total += sf
-  if _has_text(m.journal_index.scopus_link):
-    total += 4
+
+  ji = _journal_index_points(m.journal_index)
+
+  conf = 0
   if isinstance(m.conference_articles, ConferenceArticlesData):
     valid = [
         e for e in m.conference_articles.entries
-        if _has_text(e.title) and _has_text(e.proof_file)
+        if _has_text(e.title) and _is_valid_scopus(e.proof_file)
     ]
-    total += min(len(valid), 4) * 4
+    conf = min(len(valid), 4) * 4
 
+  bc = 0
   if isinstance(m.book_chapters, BookChaptersData):
       valid = [
           e for e in m.book_chapters.entries
           if _has_text(e.title) and _is_valid_scopus(e.proof_file)
       ]
-      total += min(len(valid), 4) * 6
+      bc = min(len(valid), 4) * 6
 
+  books = 0
   if isinstance(m.books, BooksData):
       valid = [
           e for e in m.books.entries
           if _has_text(e.title) and _has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)
       ]
-      pts = 0
       for entry in valid[:3]:
-          pts += 20 if entry.type == "authored" else 10
-      total += pts
+          books += 20 if entry.type == "authored" else 10
 
+  ipr = 0
   if isinstance(m.ipr, IPRData):
-      pts = 0
       for e in m.ipr.entries:
           if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
               continue
           if e.type == "patent":
-              pts += 30
+              ipr += 30
           elif e.type in ("copyright", "trademark"):
-              pts += 10
-      total += pts
+              ipr += 10
 
+  funded = 0
   if isinstance(m.funded_projects, FundedProjectsData):
-      pts = 0
       for e in m.funded_projects.entries:
           if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
               continue
           amt = float(e.amount_lakhs or 0)
           if amt > 5:
-              pts += 20
+              funded += 20
           elif amt >= 3:
-              pts += 15
+              funded += 15
           elif amt >= 2:
-              pts += 12
+              funded += 12
           elif amt >= 1:
-              pts += 10
+              funded += 10
           elif amt > 0:
-              pts += 5
-      total += pts
+              funded += 5
 
+  fdp_attended = 0
   if isinstance(m.fdp_attended, FDPAttendedData):
-      pts = 0
       valid = [
           e for e in m.fdp_attended.entries
           if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
@@ -115,36 +120,38 @@ def _compute_total_points(modules: EvaluationModules) -> int:
       for e in valid[:2]:
           days = e.days or 0
           if days >= 14:
-              pts += 10
+              fdp_attended += 10
           elif days >= 5:
-              pts += 5
+              fdp_attended += 5
           elif days >= 3:
-              pts += 3
-      total += pts
+              fdp_attended += 3
 
+  talks = 0
   if isinstance(m.talks_delivered, TalksData):
       valid = [
           e for e in m.talks_delivered.entries
           if _has_text(e.title) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
       ]
-      total += min(len(valid), 2) * 5
+      talks = min(len(valid), 2) * 5
 
+  departmental = 0
   if isinstance(m.departmental_activities, DeptActivitiesData):
       valid = [
           e for e in m.departmental_activities.entries
           if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
       ]
-      total += min(len(valid), 3) * 3
+      departmental = min(len(valid), 3) * 3
 
+  institutional = 0
   if isinstance(m.institutional_activities, InstActivitiesData):
       valid = [
           e for e in m.institutional_activities.entries
           if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
       ]
-      total += min(len(valid), 3) * 5
+      institutional = min(len(valid), 3) * 5
 
+  fdp_organized = 0
   if isinstance(m.fdp_organized, FDPOrganizedData):
-      pts = 0
       valid = [
           e for e in m.fdp_organized.entries
           if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
@@ -152,14 +159,49 @@ def _compute_total_points(modules: EvaluationModules) -> int:
       for e in valid[:2]:
           days = e.days or 0
           if days >= 5:
-              pts += 10
+              fdp_organized += 10
           elif days >= 3:
-              pts += 5
+              fdp_organized += 5
           elif days >= 1:
-              pts += 2
-      total += pts
+              fdp_organized += 2
 
-  return total
+  return {
+      "student_feedback": sf,
+      "journal_index": ji,
+      "conference_articles": conf,
+      "book_chapters": bc,
+      "books": books,
+      "ipr": ipr,
+      "funded_projects": funded,
+      "fdp_attended": fdp_attended,
+      "talks_delivered": talks,
+      "departmental_activities": departmental,
+      "institutional_activities": institutional,
+      "fdp_organized": fdp_organized,
+  }
+
+
+def _sync_module_points(modules: EvaluationModules) -> int:
+    points = _compute_module_points(modules)
+
+    modules.student_feedback.points = points["student_feedback"]
+    modules.journal_index.points = points["journal_index"]
+    modules.conference_articles.points = points["conference_articles"]
+    modules.book_chapters.points = points["book_chapters"]
+    modules.books.points = points["books"]
+    modules.ipr.points = points["ipr"]
+    modules.funded_projects.points = points["funded_projects"]
+    modules.fdp_attended.points = points["fdp_attended"]
+    modules.talks_delivered.points = points["talks_delivered"]
+    modules.departmental_activities.points = points["departmental_activities"]
+    modules.institutional_activities.points = points["institutional_activities"]
+    modules.fdp_organized.points = points["fdp_organized"]
+
+    return sum(points.values())
+
+
+def _compute_total_points(modules: EvaluationModules) -> int:
+  return _sync_module_points(modules)
 
 # Demo users: hod@demo.com, faculty@demo.com, principal@demo.com / password: demo123
 def _seed():

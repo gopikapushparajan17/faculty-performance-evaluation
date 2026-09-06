@@ -74,6 +74,7 @@ export interface JournalIndexData {
   value: string
   title?: string
   scopus_link?: string
+  points?: number
   verification?: JournalIndexVerification
 }
 
