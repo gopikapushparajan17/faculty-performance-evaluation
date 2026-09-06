@@ -414,7 +414,12 @@ export default function EvaluationView() {
             <div>
               {m?.student_feedback?.points ?? 0}
             </div>
-
+            <div>
+  <strong>Journal Index</strong>
+</div>
+<div>
+  {m?.journal_index?.verification?.scopus_status === 'source_covered' ? 4 : 0}
+</div>
             <div>
               <strong>Conference Articles</strong>
             </div>

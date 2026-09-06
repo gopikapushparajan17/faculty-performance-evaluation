@@ -8,6 +8,11 @@ export function studentFeedbackPoints(pct: number): number {
   return 5
 }
 
+// 2. Journal Index: 4 points
+export function journalIndexPoints(value: string): number {
+  return value?.trim() ? 4 : 0
+}
+
 // 3. Conference: 4 pts each, max 4
 export function conferencePoints(count: number): number {
   return Math.min(count, 4) * 4

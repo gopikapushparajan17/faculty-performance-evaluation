@@ -51,8 +51,8 @@ def _compute_total_points(modules: EvaluationModules) -> int:
       elif pct > 0:
           sf = 5
   total += sf
-  if _has_text(m.journal_index.title) and _has_text(m.journal_index.scopus_link):
-       total += 4
+  if _has_text(m.journal_index.scopus_link):
+    total += 4
   if isinstance(m.conference_articles, ConferenceArticlesData):
     valid = [
         e for e in m.conference_articles.entries

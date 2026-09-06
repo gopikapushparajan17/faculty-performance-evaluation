@@ -7,6 +7,7 @@ import ModuleCard from '../components/ModuleCard'
 import ProofUpload from '../components/ProofUpload'
 import {
   studentFeedbackPoints,
+  journalIndexPoints,
   conferencePoints,
   bookChaptersPoints,
   booksPoints,
@@ -22,7 +23,7 @@ import type { Evaluation, EvaluationModules } from '../types/evaluation'
 
 const defaultModules: EvaluationModules = {
   student_feedback: { percentage: '', points: 0 },
-  journal_index: { value: '' },
+  journal_index: { value: '', points: 0 },
   conference_articles: { entries: [], points: 0 },
   book_chapters: { entries: [], points: 0 },
   books: { entries: [], points: 0 },
@@ -78,6 +79,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     const m = modules ?? defaultModules
 
     const sf = studentFeedbackPoints(Number(m.student_feedback?.percentage) || 0)
+    const journal = m.journal_index?.verification?.scopus_status === 'source_covered' ? 4 : 0
 
     const confEntries = m.conference_articles?.entries ?? []
     const validConf = confEntries.filter((e) => hasText(e.title) && isValidScopus(e.proof_file))
@@ -125,10 +127,11 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     )
     const fdpO = fdpOrganizedPoints(validFdpOrg)
 
-    const total = sf + conf + bc + books + ipr + funded + fdpA + talks + dept + inst + fdpO
+    const total = sf + journal + conf + bc + books + ipr + funded + fdpA + talks + dept + inst + fdpO
 
     return {
       student_feedback: sf,
+      journal_index: journal,
       conference_articles: conf,
       book_chapters: bc,
       books,
@@ -183,6 +186,11 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
       student_feedback: {
         ...(data.modules?.student_feedback ?? defaultModules.student_feedback),
         points: computed.student_feedback,
+      },
+
+      journal_index: {
+        ...(data.modules?.journal_index ?? defaultModules.journal_index),
+        points: computed.journal_index,
       },
 
       conference_articles: {
@@ -287,6 +295,13 @@ const verifyJournalPublication = async () => {
       data,
       { shouldDirty: true }
     )
+    if (data.title) {
+      form.setValue(
+        'modules.journal_index.title',
+        data.title,
+        { shouldDirty: true }
+      )
+    }
   } catch (err: any) {
     console.error('Publication verification failed:', err)
 
