@@ -393,13 +393,14 @@ const pendingMine = mine.filter(
                   <th>Faculty / Year</th>
                   <th>Status</th>
                   <th>Total Points</th>
+                  <th>Rejection Reason</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {mine.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="td-muted">No evaluations yet.</td>
+                    <td colSpan={5} className="td-muted">No evaluations yet.</td>
                   </tr>
                 ) : (
                   mine.map((ev) => (
@@ -410,6 +411,7 @@ const pendingMine = mine.filter(
                         </span>
                       </td>
                       <td style={{ fontWeight: 500 }}>{ev.total_points ?? 0}</td>
+                      <td>{ev.reject_reason ?? '—'}</td>
                       <td>
                         <Link to={`/evaluation/${ev.id}/view`} className="link">View</Link>
                         {ev.status === 'draft' && <Link to={`/evaluation/${ev.id}/edit`} className="link">Edit</Link>}
