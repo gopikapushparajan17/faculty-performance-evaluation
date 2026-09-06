@@ -1,3 +1,4 @@
+import ast
 import os
 from reportlab.platypus import (
     SimpleDocTemplate,
@@ -24,6 +25,18 @@ TABLE_FONT_SIZE = 10
 TABLE_HEADER_FONT_SIZE = 11
 TABLE_PADDING = 5
 TABLE_H_PADDING = 8
+
+RAW_VERIFICATION_FIELD_NAMES = frozenset({
+    "data",
+    "raw_data",
+    "response",
+    "raw_response",
+    "verification_data",
+})
+
+
+def _is_raw_verification_field(field_name) -> bool:
+    return str(field_name).strip().lower() in RAW_VERIFICATION_FIELD_NAMES
 
 
 def _section_heading_style(styles) -> ParagraphStyle:
@@ -345,7 +358,11 @@ def build_detailed_report(content, styles, modules) -> None:
             "error",
         ]
 
-        def add_row(label, value):
+        def add_row(label, value, field_key=None):
+            key_to_check = field_key if field_key is not None else str(label).replace(" ", "_")
+            if _is_raw_verification_field(key_to_check):
+                return
+
             if value is None or value == "":
                 return
 
@@ -381,6 +398,9 @@ def build_detailed_report(content, styles, modules) -> None:
             # individual rows instead of displaying a dictionary.
             if isinstance(value, dict):
                 for nested_key, nested_value in value.items():
+                    if _is_raw_verification_field(nested_key):
+                        continue
+
                     if nested_value is None or nested_value == "":
                         continue
 
@@ -418,20 +438,20 @@ def build_detailed_report(content, styles, modules) -> None:
         used = set()
 
         for key in preferred_order:
-            if key not in data:
+            if key not in data or _is_raw_verification_field(key):
                 continue
 
             used.add(key)
             label = key.replace("_", " ").title()
-            add_row(label, data[key])
+            add_row(label, data[key], key)
 
         # Render any extra fields without losing them.
         for key, value in data.items():
-            if key in used:
+            if key in used or _is_raw_verification_field(key):
                 continue
 
             label = str(key).replace("_", " ").title()
-            add_row(label, value)
+            add_row(label, value, key)
 
         return rows
 
