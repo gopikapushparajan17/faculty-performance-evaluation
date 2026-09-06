@@ -78,8 +78,14 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
   const computed = useMemo(() => {
     const m = modules ?? defaultModules
 
-    const sf = studentFeedbackPoints(Number(m.student_feedback?.percentage) || 0)
-    const journal = m.journal_index?.verification?.scopus_status === 'source_covered' ? 4 : 0
+    const sf = hasText(m.student_feedback?.percentage)
+      ? studentFeedbackPoints(Number(m.student_feedback!.percentage))
+      : 0
+    const journal =
+      hasText(m.journal_index?.scopus_link) &&
+      m.journal_index?.verification?.scopus_status === 'source_covered'
+        ? 4
+        : 0
 
     const confEntries = m.conference_articles?.entries ?? []
     const validConf = confEntries.filter((e) => hasText(e.title) && isValidScopus(e.proof_file))
@@ -451,7 +457,7 @@ const verifyJournalPublication = async () => {
         </ModuleCard>
 
         {/* Module 2: Journal Index (Scopus required when filled) */}
-        <ModuleCard title="2. Journal Index" points={4} defaultOpen>
+        <ModuleCard title="2. Journal Index" points={computed.journal_index} defaultOpen>
 
 <div className="form-row">
 
