@@ -2,14 +2,15 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from app.database import (
+from app.crud import (
+    create_evaluation,
     get_evaluation,
-    get_faculty,
     update_evaluation,
     list_evaluations_all,
     list_faculty,
+    get_faculty,
+    delete_evaluation,
 )
-from app.database import create_evaluation
 
 from app.deps import get_current_user, require_role
 from fastapi.responses import FileResponse

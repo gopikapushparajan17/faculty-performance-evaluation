@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.mysql_db import SessionLocal
 from app.db_models import UserDB, FacultyDB, EvaluationDB
-from app.models import FacultyProfile, Evaluation, EvaluationModules
+from app.models import User, FacultyProfile, Evaluation, EvaluationModules
 from app.database import _compute_total_points
 
 
@@ -16,7 +16,27 @@ def get_user_by_email(email: str):
             )
         ).scalar_one_or_none()
 
-        return user
+        if not user:
+            return None
+
+        name = user.username
+
+        if user.role == "faculty":
+            faculty = db.query(FacultyDB).filter(
+                FacultyDB.user_id == user.id
+            ).first()
+
+            if faculty:
+                name = faculty.name
+
+        return User(
+            id=str(user.id),
+            email=user.username,
+            name=name,
+            role=user.role,
+            department=user.department,
+            password_hash=user.password_hash,
+        )
 
     finally:
         db.close()
@@ -31,7 +51,27 @@ def get_user_by_id(user_id: str):
             )
         ).scalar_one_or_none()
 
-        return user
+        if not user:
+            return None
+
+        name = user.username
+
+        if user.role == "faculty":
+            faculty = db.query(FacultyDB).filter(
+                FacultyDB.user_id == user.id
+            ).first()
+
+            if faculty:
+                name = faculty.name
+
+        return User(
+            id=str(user.id),
+            email=user.username,
+            name=name,
+            role=user.role,
+            department=user.department,
+            password_hash=user.password_hash,
+        )
 
     finally:
         db.close()
@@ -250,10 +290,10 @@ def get_evaluation(eid: str):
         faculty = get_faculty(str(e.faculty_id))
 
         return Evaluation(
-            id=e.id,
-            faculty_id=e.faculty_id,
+            id=str(e.id),
+            faculty_id=str(e.faculty_id),
             faculty=faculty,
-            ef_id=e.ef_id,
+            ef_id=str(e.ef_id),
             academic_year=e.academic_year or "",
             status=e.status or "draft",
             modules=EvaluationModules(**(e.modules or {})),

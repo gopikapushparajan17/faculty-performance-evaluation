@@ -8,8 +8,9 @@ from app.crud import (
     get_faculty_by_email,
     get_faculty_by_emp_id,
     create_faculty_account,
+    get_faculty_by_user_id,
 )
-from app.database import get_faculty_by_user_id
+
 from app.models import FacultyProfile
 from pydantic import BaseModel
 from app.deps import get_current_user, require_role
