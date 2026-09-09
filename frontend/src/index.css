@@ -599,6 +599,8 @@ td {
   border-radius: 16px;
   padding: 1.25rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .evaluation-card h3 {
@@ -608,8 +610,11 @@ td {
 
 .card-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
   margin-top: 1rem;
+  max-width: 100%;
 }
 .score-summary {
   display: grid;
