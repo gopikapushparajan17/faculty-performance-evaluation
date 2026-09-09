@@ -19,7 +19,9 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        setMessage(null)
+        if (!stateMessage) {
+          setMessage(null)
+        }
 
         if (user?.role === 'hod') {
           const [pRes, aRes, rRes] = await Promise.all([
@@ -53,7 +55,7 @@ export default function Dashboard() {
       }
     }
     load()
-  }, [user?.role])
+  }, [user?.role, location.key])
 
   useEffect(() => {
     if (stateMessage) {

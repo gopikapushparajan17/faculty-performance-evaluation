@@ -187,7 +187,7 @@ def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
 
     body["modules"] = mod
     body["ef_id"] = user.id
-    body["status"] = "pending"
+    body["status"] = "draft"
 
     return create_evaluation(body)
 
@@ -197,10 +197,11 @@ def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty
     existing = get_evaluation(eid)
     if not existing:
         raise HTTPException(404, "Evaluation not found")
-    if existing.ef_id != user.id:
+    if str(existing.ef_id) != str(user.id):
         raise HTTPException(403, "Access denied")
     if existing.status != "draft":
         raise HTTPException(400, "Only draft evaluations can be edited")
+    body.pop("status", None)
     ev = update_evaluation(eid, body)
     if not ev:
         raise HTTPException(404, "Evaluation not found")
@@ -212,7 +213,7 @@ def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
     ev = get_evaluation(eid)
     if not ev:
         raise HTTPException(404, "Evaluation not found")
-    if ev.ef_id != user.id:
+    if str(ev.ef_id) != str(user.id):
         raise HTTPException(403, "Access denied")
     if ev.status != "draft":
         raise HTTPException(400, "Only draft evaluations can be submitted")

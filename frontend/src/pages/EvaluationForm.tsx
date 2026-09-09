@@ -60,7 +60,6 @@ export default function EvaluationForm() {
   const [bookChapterVerificationLoading, setBookChapterVerificationLoading] = useState<Record<number, boolean>>({})
 const [bookChapterVerificationError, setBookChapterVerificationError] = useState<Record<number, string>>({})
   
-  const isNew = !evaluationId
   const editId = evaluationId
 
   const form = useForm<FormValues>({
@@ -173,6 +172,10 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
   useEffect(() => {
     if (editId) {
       api.get<Evaluation>(`/evaluations/${editId}`).then(({ data }) => {
+        if (data.status !== 'draft') {
+          navigate(`/evaluation/${data.id}/view`, { replace: true })
+          return
+        }
         form.reset({
           ...data,
           id: data.id,
@@ -184,8 +187,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     }
   }, [editId])
 
- const onSubmit = async (data: FormValues) => {
-  try {
+ const persistDraft = async (data: FormValues) => {
     const modules = {
       ...(data.modules ?? defaultModules),
 
@@ -255,20 +257,25 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
       faculty_id: facultyId ?? data.faculty_id,
       modules,
       total_points: computed.total,
+      status: 'draft',
     }
 
-    if (isNew) {
-      const { data: ev } = await api.post<Evaluation>("/evaluations", {
-        ...payload,
-        id: undefined,
-      })
-
-      navigate(`/evaluation/${ev.id}/view`)
-    } else if (payload.id) {
-      await api.put(`/evaluations/${payload.id}`, payload)
-
-      navigate(`/evaluation/${payload.id}/view`)
+    if (editId) {
+      const { data: ev } = await api.put<Evaluation>(`/evaluations/${editId}`, payload)
+      return ev
     }
+
+    const { data: ev } = await api.post<Evaluation>('/evaluations', {
+      ...payload,
+      id: undefined,
+    })
+    return ev
+  }
+
+ const onSubmit = async (data: FormValues) => {
+  try {
+    await persistDraft(data)
+    navigate('/dashboard', { state: { message: 'Draft saved.' } })
   } catch (err: any) {
     console.error(err)
 
@@ -426,17 +433,19 @@ const verifyJournalPublication = async () => {
 
   const submitEval = async () => {
     const data = form.getValues()
-    if (!data.id) {
-      alert('Please save the evaluation before submitting.')
-      return
-    }
     if (computed.total <= 0) {
       alert('Grand total must be greater than 0 with required proofs (Scopus links or uploaded files) before submission.')
       return
     }
-    await api.post(`/evaluations/${data.id}/submit`)
-    form.setValue('status', 'pending')
-    alert('Evaluation submitted for approval.')
+    try {
+      const saved = await persistDraft(data)
+      await api.post(`/evaluations/${saved.id}/submit`)
+      navigate('/dashboard', { state: { message: 'Evaluation submitted for approval.' } })
+    } catch (err: any) {
+      console.error(err)
+      const detail = err?.response?.data?.detail
+      alert(typeof detail === 'string' ? detail : 'Something went wrong while submitting the evaluation.')
+    }
   }
 
   return (
@@ -744,9 +753,9 @@ const verifyJournalPublication = async () => {
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary">Save {isNew ? 'Draft' : ''}</button>
-          {user?.role === 'faculty' && form.watch('status') === 'draft' && form.getValues().id && (
-            <button type="button" onClick={submitEval} className="btn btn-secondary">Submit Evaluation</button>
+          <button type="submit" className="btn btn-primary">Save Draft</button>
+          {user?.role === 'faculty' && form.watch('status') === 'draft' && (
+            <button type="button" onClick={submitEval} className="btn btn-secondary">Submit</button>
           )}
           <button type="button" onClick={() => navigate('/dashboard')} className="btn btn-outline">Cancel</button>
         </div>
