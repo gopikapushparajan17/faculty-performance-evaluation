@@ -33,9 +33,7 @@ export default function Dashboard() {
           setPending(pRes.data)
           setApproved(aRes.data)
           setRejected(rRes.data)
-          if (pRes.data.length > 0) {
-            setMessage({ type: 'success', text: `Pending evaluations: ${pRes.data.length}` })
-          }
+
         } else if (user?.role === 'faculty') {
           const [mineRes, profileRes] = await Promise.all([
             api.get<Evaluation[]>('/evaluations/mine'),
