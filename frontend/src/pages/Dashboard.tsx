@@ -405,7 +405,19 @@ const pendingMine = mine.filter(
                     <td colSpan={5} className="td-muted">No evaluations yet.</td>
                   </tr>
                 ) : (
-                  mine.map((ev) => (
+                  mine
+                    .slice()
+                    .sort((a, b) => {
+                      const dateA = Date.parse(a.created_at ?? '')
+                      const dateB = Date.parse(b.created_at ?? '')
+                      const hasDateA = !Number.isNaN(dateA)
+                      const hasDateB = !Number.isNaN(dateB)
+                      if (hasDateA && hasDateB && dateB !== dateA) {
+                        return dateB - dateA
+                      }
+                      return Number(b.id) - Number(a.id)
+                    })
+                    .map((ev) => (
                     <tr key={ev.id}>
                       <td>{ev.faculty?.employee_name ?? ev.faculty_id} — {ev.academic_year}</td>
                       <td><span className={`badge ${ev.status}`}>
