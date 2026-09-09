@@ -166,7 +166,14 @@ const pendingMine = mine.filter(
     </div>
   ) : (
     <div className="evaluation-grid">
-      {pending.map((ev) => (
+      {pending.slice().sort((a, b) => {
+        const dateA = Date.parse(a.created_at ?? '')
+        const dateB = Date.parse(b.created_at ?? '')
+        const hasDateA = !Number.isNaN(dateA)
+        const hasDateB = !Number.isNaN(dateB)
+        if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
+        return Number(b.id) - Number(a.id)
+      }).map((ev) => (
         <div className="evaluation-card" key={ev.id}>
           <h3>
             {ev.faculty?.employee_name ?? ev.faculty_id}
@@ -289,7 +296,14 @@ const pendingMine = mine.filter(
                       <td colSpan={5} className="td-muted">No approved evaluations yet.</td>
                     </tr>
                   ) : (
-                    approved.map((ev) => (
+                    approved.slice().sort((a, b) => {
+                      const dateA = Date.parse(a.created_at ?? '')
+                      const dateB = Date.parse(b.created_at ?? '')
+                      const hasDateA = !Number.isNaN(dateA)
+                      const hasDateB = !Number.isNaN(dateB)
+                      if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
+                      return Number(b.id) - Number(a.id)
+                    }).map((ev) => (
                       <tr key={ev.id}>
                         <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
                         <td>{ev.faculty?.employee_id ?? '—'}</td>
@@ -342,7 +356,14 @@ const pendingMine = mine.filter(
                       </td>
                     </tr>
                   ) : (
-                    rejected.map((ev) => (
+                    rejected.slice().sort((a, b) => {
+                      const dateA = Date.parse(a.created_at ?? '')
+                      const dateB = Date.parse(b.created_at ?? '')
+                      const hasDateA = !Number.isNaN(dateA)
+                      const hasDateB = !Number.isNaN(dateB)
+                      if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
+                      return Number(b.id) - Number(a.id)
+                    }).map((ev) => (
                       <tr key={ev.id}>
                         <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
 
