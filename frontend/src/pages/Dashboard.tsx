@@ -9,6 +9,9 @@ export default function Dashboard() {
   const [pending, setPending] = useState<Evaluation[]>([])
   const [approved, setApproved] = useState<Evaluation[]>([])
   const [rejected, setRejected] = useState<Evaluation[]>([])
+  const [hodView, setHodView] = useState<
+    'dashboard' | 'pending' | 'approved' | 'rejected' | 'all'
+  >('dashboard')
   const [mine, setMine] = useState<Evaluation[]>([])
   const [profile, setProfile] = useState<FacultyProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,7 +36,6 @@ export default function Dashboard() {
           setPending(pRes.data)
           setApproved(aRes.data)
           setRejected(rRes.data)
-
         } else if (user?.role === 'faculty') {
           const [mineRes, profileRes] = await Promise.all([
             api.get<Evaluation[]>('/evaluations/mine'),
@@ -46,12 +48,14 @@ export default function Dashboard() {
         setMessage({ type: 'error', text: 'Failed to load dashboard data.' })
         setPending([])
         setApproved([])
+        setRejected([])
         setMine([])
         setProfile(null)
       } finally {
         setLoading(false)
       }
     }
+
     load()
   }, [user?.role, location.key])
 
@@ -62,87 +66,153 @@ export default function Dashboard() {
     }
   }, [stateMessage])
 
+  if (loading) return <div className="loading-text">Loading...</div>
 
-if (loading) return <div className="loading-text">Loading...</div>
+  const allHodEvaluations = [...pending, ...approved, ...rejected]
 
-const pendingCount = pending.length
-const approvedCount = approved.length
+  const sortRecent = (evaluations: Evaluation[]) =>
+    evaluations.slice().sort((a, b) => {
+      const dateA = Date.parse(a.created_at ?? '')
+      const dateB = Date.parse(b.created_at ?? '')
+      const hasDateA = !Number.isNaN(dateA)
+      const hasDateB = !Number.isNaN(dateB)
 
-const approvedMine = mine.filter(
-  (e) => e.status === 'approved'
-).length
+      if (hasDateA && hasDateB && dateB !== dateA) {
+        return dateB - dateA
+      }
 
-const pendingMine = mine.filter(
-  (e) => e.status === 'pending'
-).length
+      return Number(b.id) - Number(a.id)
+    })
+
+  const recentApproved = sortRecent(approved).slice(0, 5)
+  const recentRejected = sortRecent(rejected).slice(0, 5)
+
+  const approvedMine = mine.filter(
+    (e) => e.status === 'approved'
+  ).length
+
+  const pendingMine = mine.filter(
+    (e) => e.status === 'pending'
+  ).length
+
   const deleteEvaluation = async (id: string) => {
-  const confirmed = window.confirm(
-    'Are you sure you want to delete this evaluation?'
-  )
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this evaluation?'
+    )
 
-  if (!confirmed) return
+    if (!confirmed) return
 
-  try {
-    await api.delete(`/evaluations/${id}`)
+    try {
+      await api.delete(`/evaluations/${id}`)
 
-    const [pRes, aRes] = await Promise.all([
+      const [pRes, aRes, rRes] = await Promise.all([
+        api.get<Evaluation[]>('/evaluations/pending'),
+        api.get<Evaluation[]>('/evaluations/approved'),
+        api.get<Evaluation[]>('/evaluations/rejected'),
+      ])
+
+      setPending(pRes.data)
+      setApproved(aRes.data)
+      setRejected(rRes.data)
+
+      setMessage({
+        type: 'success',
+        text: 'Evaluation deleted successfully.',
+      })
+    } catch {
+      setMessage({
+        type: 'error',
+        text: 'Failed to delete evaluation.',
+      })
+    }
+  }
+
+  const refreshHodLists = async () => {
+    const [pRes, aRes, rRes] = await Promise.all([
       api.get<Evaluation[]>('/evaluations/pending'),
       api.get<Evaluation[]>('/evaluations/approved'),
+      api.get<Evaluation[]>('/evaluations/rejected'),
     ])
 
     setPending(pRes.data)
     setApproved(aRes.data)
-
-    setMessage({
-      type: 'success',
-      text: 'Evaluation deleted successfully.',
-    })
-  } catch {
-    setMessage({
-      type: 'error',
-      text: 'Failed to delete evaluation.',
-    })
+    setRejected(rRes.data)
   }
-}
+
+  const hodViewTitle = {
+    dashboard: 'HOD Approval Dashboard',
+    pending: 'Pending Evaluations',
+    approved: 'Approved Evaluations',
+    rejected: 'Rejected Evaluations',
+    all: 'All Evaluations',
+  }[hodView]
 
   return (
     <div>
-      <h1 className="page-title">{user?.role === 'hod' ? 'HOD Approval Dashboard' : 'Evaluating Faculty Dashboard'}</h1>
-      {user?.role === 'hod' ? (
-  <div className="stats-grid">
-    <div className="stat-card">
-      <h3>{pendingCount}</h3>
-      <p>Pending Evaluations</p>
-    </div>
+      <h1 className="page-title">
+        {user?.role === 'hod' ? hodViewTitle : 'Evaluating Faculty Dashboard'}
+      </h1>
 
-    <div className="stat-card">
-      <h3>{approvedCount}</h3>
-      <p>Approved Evaluations</p>
-    </div>
+      {user?.role === 'hod' && hodView === 'dashboard' ? (
+        <div className="stats-grid">
+          <button
+            className="stat-card"
+            onClick={() => setHodView('pending')}
+            type="button"
+          >
+            <h3>{pending.length}</h3>
+            <p>Pending Evaluations</p>
+            <span>View →</span>
+          </button>
 
-    <div className="stat-card">
-      <h3>{pendingCount + approvedCount}</h3>
-      <p>Total Evaluations</p>
-    </div>
-  </div>
-) : (
-  <div className="stats-grid">
-    <div className="stat-card">
-      <h3>{mine.length}</h3>
-      <p>Total Evaluations</p>
-    </div>
+          <button
+            className="stat-card"
+            onClick={() => setHodView('approved')}
+            type="button"
+          >
+            <h3>{approved.length}</h3>
+            <p>Approved Evaluations</p>
+            <span>View →</span>
+          </button>
 
-    <div className="stat-card">
-      <h3>{pendingMine}</h3>
-      <p>Pending</p>
-    </div>
+          <button
+            className="stat-card"
+            onClick={() => setHodView('rejected')}
+            type="button"
+          >
+            <h3>{rejected.length}</h3>
+            <p>Rejected Evaluations</p>
+            <span>View →</span>
+          </button>
 
-    <div className="stat-card">
-      <h3>{approvedMine}</h3>
-      <p>Approved</p>
-    </div>
-  </div>
-)}
+          <button
+            className="stat-card"
+            onClick={() => setHodView('all')}
+            type="button"
+          >
+            <h3>{allHodEvaluations.length}</h3>
+            <p>Total Evaluations</p>
+            <span>View →</span>
+          </button>
+        </div>
+      ) : user?.role === 'faculty' ? (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <h3>{mine.length}</h3>
+            <p>Total Evaluations</p>
+          </div>
+
+          <div className="stat-card">
+            <h3>{pendingMine}</h3>
+            <p>Pending</p>
+          </div>
+
+          <div className="stat-card">
+            <h3>{approvedMine}</h3>
+            <p>Approved</p>
+          </div>
+        </div>
+      ) : null}
 
       {message && (
         <div className={`card card-body mb-6 ${message.type === 'error' ? 'error-card' : ''}`}>
@@ -152,251 +222,566 @@ const pendingMine = mine.filter(
 
       {user?.role === 'hod' ? (
         <>
-          <div className="mb-6">
-            <Link to="/faculty/new" className="btn btn-secondary">Add Faculty</Link>
-          </div>
-          <section className="section">
-  <h2 className="section-title">Pending Evaluations</h2>
-
-  {pending.length === 0 ? (
-    <div className="card card-body">
-      No pending evaluations.
-    </div>
-  ) : (
-    <div className="evaluation-grid">
-      {pending.slice().sort((a, b) => {
-        const dateA = Date.parse(a.created_at ?? '')
-        const dateB = Date.parse(b.created_at ?? '')
-        const hasDateA = !Number.isNaN(dateA)
-        const hasDateB = !Number.isNaN(dateB)
-        if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
-        return Number(b.id) - Number(a.id)
-      }).map((ev) => (
-        <div className="evaluation-card" key={ev.id}>
-          <h3>
-            {ev.faculty?.employee_name ?? ev.faculty_id}
-          </h3>
-
-          <p>
-            <strong>ID:</strong>{" "}
-            {ev.faculty?.employee_id ?? "—"}
-          </p>
-
-          <p>
-            <strong>Academic Year:</strong>{" "}
-            {ev.academic_year}
-          </p>
-
-          <p>
-            <strong>Total Points:</strong>{" "}
-            {ev.total_points ?? 0}
-          </p>
-
-          <div className="card-actions">
-                <Link
-                  to={`/evaluation/${ev.id}/view`}
-                  className="btn btn-outline"
-                >
-                  View
+          {hodView === 'dashboard' && (
+            <>
+              <div className="mb-6">
+                <Link to="/faculty/new" className="btn btn-secondary">
+                  Add Faculty
                 </Link>
+              </div>
 
+              <section className="section">
+                <h2 className="section-title">Pending Evaluations</h2>
+
+                {pending.length === 0 ? (
+                  <div className="card card-body">
+                    No pending evaluations.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '16px',
+                    }}
+                  >
+                    {sortRecent(pending).map((ev) => (
+                      <div className="evaluation-card" key={ev.id}>
+                        <h3>
+                          {ev.faculty?.employee_name ?? ev.faculty_id}
+                        </h3>
+
+                        <p>
+                          <strong>ID:</strong>{" "}
+                          {ev.faculty?.employee_id ?? "—"}
+                        </p>
+
+                        <p>
+                          <strong>Academic Year:</strong>{" "}
+                          {ev.academic_year}
+                        </p>
+
+                        <p>
+                          <strong>Total Points:</strong>{" "}
+                          {ev.total_points ?? 0}
+                        </p>
+
+                        <div className="card-actions">
+                          <Link
+                            to={`/evaluation/${ev.id}/view`}
+                            className="btn btn-outline"
+                          >
+                            View
+                          </Link>
+
+                          <button
+                            className="btn btn-primary"
+                            onClick={async () => {
+                              try {
+                                await api.post(`/evaluations/${ev.id}/approve`)
+                                await refreshHodLists()
+
+                                setMessage({
+                                  type: 'success',
+                                  text: 'Evaluation approved successfully.',
+                                })
+                              } catch {
+                                setMessage({
+                                  type: 'error',
+                                  text: 'Approval failed.',
+                                })
+                              }
+                            }}
+                          >
+                            Approve
+                          </button>
+
+                          <button
+                            className="btn btn-warning"
+                            onClick={async () => {
+                              const reason = prompt("Enter rejection reason:")
+                              if (!reason) return
+
+                              try {
+                                await api.post(`/evaluations/${ev.id}/reject`, {
+                                  reason,
+                                })
+                                await refreshHodLists()
+
+                                setMessage({
+                                  type: 'success',
+                                  text: 'Evaluation rejected successfully.',
+                                })
+                              } catch {
+                                setMessage({
+                                  type: 'error',
+                                  text: 'Rejection failed.',
+                                })
+                              }
+                            }}
+                          >
+                            Reject
+                          </button>
+
+                          <button
+                            className="btn btn-danger"
+                            onClick={() => deleteEvaluation(ev.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="section">
+                <h2 className="section-title">Approved Evaluations</h2>
+
+                <div className="card table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Faculty</th>
+                        <th>Employee ID</th>
+                        <th>Academic Year</th>
+                        <th>Total Points</th>
+                        <th>Approved At</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {approved.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="td-muted">
+                            No approved evaluations yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        recentApproved.map((ev) => (
+                          <tr key={ev.id}>
+                            <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                            <td>{ev.faculty?.employee_id ?? '—'}</td>
+                            <td>{ev.academic_year}</td>
+                            <td style={{ fontWeight: 500 }}>
+                              {ev.total_points ?? 0}
+                            </td>
+                            <td>
+                              {(ev as unknown as { approved_at?: string }).approved_at ?? '—'}
+                            </td>
+                            <td>
+                              <Link
+                                to={`/evaluation/${ev.id}/view`}
+                                className="link"
+                              >
+                                View
+                              </Link>
+
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => deleteEvaluation(ev.id)}
+                                style={{ marginLeft: '10px' }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {approved.length > 5 && (
+                  <div style={{ textAlign: 'right', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setHodView('approved')}
+                    >
+                      View all →
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="section">
+                <h2 className="section-title">Rejected Evaluations</h2>
+
+                <div className="card table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Faculty</th>
+                        <th>Employee ID</th>
+                        <th>Academic Year</th>
+                        <th>Total Points</th>
+                        <th>Rejected Reason</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {rejected.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="td-muted">
+                            No rejected evaluations yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        recentRejected.map((ev) => (
+                          <tr key={ev.id}>
+                            <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                            <td>{ev.faculty?.employee_id ?? "—"}</td>
+                            <td>{ev.academic_year}</td>
+                            <td style={{ fontWeight: 500 }}>
+                              {ev.total_points ?? 0}
+                            </td>
+                            <td>{ev.reject_reason ?? "—"}</td>
+                            <td>
+                              <Link
+                                to={`/evaluation/${ev.id}/view`}
+                                className="link"
+                              >
+                                View
+                              </Link>
+
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => deleteEvaluation(ev.id)}
+                                style={{ marginLeft: "10px" }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {rejected.length > 5 && (
+                  <div style={{ textAlign: 'right', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setHodView('rejected')}
+                    >
+                      View all →
+                    </button>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {hodView !== 'dashboard' && (
+            <>
+              <div className="mb-6">
                 <button
-                  className="btn btn-primary"
-                  onClick={async () => {
-                    try {
-                      await api.post(`/evaluations/${ev.id}/approve`)
-
-                      const [pRes, aRes] = await Promise.all([
-                        api.get<Evaluation[]>('/evaluations/pending'),
-                        api.get<Evaluation[]>('/evaluations/approved'),
-                      ])
-
-                      setPending(pRes.data)
-                      setApproved(aRes.data)
-
-                      setMessage({
-                        type: 'success',
-                        text: 'Evaluation approved successfully.',
-                      })
-                    } catch {
-                      setMessage({
-                        type: 'error',
-                        text: 'Approval failed.',
-                      })
-                    }
-                  }}
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setHodView('dashboard')}
                 >
-                  Approve
-                </button>
-                <button
-                  className="btn btn-warning"
-                  onClick={async () => {
-                    const reason = prompt("Enter rejection reason:")
-                    if (!reason) return
-
-                    try {
-                      await api.post(`/evaluations/${ev.id}/reject`, {
-                        reason,
-                      })
-
-                      const [pRes, aRes] = await Promise.all([
-                        api.get<Evaluation[]>('/evaluations/pending'),
-                        api.get<Evaluation[]>('/evaluations/approved'),
-                      ])
-
-                      setPending(pRes.data)
-                      setApproved(aRes.data)
-
-                      setMessage({
-                        type: 'success',
-                        text: 'Evaluation rejected successfully.',
-                      })
-                    } catch {
-                      setMessage({
-                        type: 'error',
-                        text: 'Rejection failed.',
-                      })
-                    }
-                  }}
-                >
-                  Reject
-                </button>
-
-                <button
-                  className="btn btn-danger"
-                  onClick={() => deleteEvaluation(ev.id)}
-                >
-                  Delete
+                  ← Back to Dashboard
                 </button>
               </div>
-        </div>
-      ))}
-    </div>
-  )}
-</section>
 
-          <section className="section">
-            <h2 className="section-title">Approved Evaluations</h2>
-            <div className="card table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Faculty</th>
-                    <th>Employee ID</th>
-                    <th>Total Points</th>
-                    <th>Approved At</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {approved.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="td-muted">No approved evaluations yet.</td>
-                    </tr>
-                  ) : (
-                    approved.slice().sort((a, b) => {
-                      const dateA = Date.parse(a.created_at ?? '')
-                      const dateB = Date.parse(b.created_at ?? '')
-                      const hasDateA = !Number.isNaN(dateA)
-                      const hasDateB = !Number.isNaN(dateB)
-                      if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
-                      return Number(b.id) - Number(a.id)
-                    }).map((ev) => (
-                      <tr key={ev.id}>
-                        <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
-                        <td>{ev.faculty?.employee_id ?? '—'}</td>
-                        <td style={{ fontWeight: 500 }}>{ev.total_points ?? 0}</td>
-                        <td>{(ev as unknown as { approved_at?: string }).approved_at ?? '—'}</td>
-                        <td>
-                          <Link
-                            to={`/evaluation/${ev.id}/view`}
-                            className="link"
-                          >
-                            View
-                          </Link>
+              {hodView === 'pending' && (
+                <section className="section">
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Total Points</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
 
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            onClick={() => deleteEvaluation(ev.id)}
-                            style={{ marginLeft: '10px' }}
-                          >
-                            Delete
-                          </button>
-                      </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <section className="section">
-            <h2 className="section-title">Rejected Evaluations</h2>
+                      <tbody>
+                        {pending.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="td-muted">
+                              No pending evaluations.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(pending).map((ev) => (
+                            <tr key={ev.id}>
+                              <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                              <td>{ev.faculty?.employee_id ?? '—'}</td>
+                              <td>{ev.academic_year}</td>
+                              <td style={{ fontWeight: 500 }}>
+                                {ev.total_points ?? 0}
+                              </td>
+                              <td>
+                                <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  className="link"
+                                >
+                                  View
+                                </Link>
 
-            <div className="card table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Faculty</th>
-                    <th>Employee ID</th>
-                    <th>Total Points</th>
-                    <th>Rejected Reason</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={async () => {
+                                    try {
+                                      await api.post(`/evaluations/${ev.id}/approve`)
+                                      await refreshHodLists()
 
-                <tbody>
-                  {rejected.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="td-muted">
-                        No rejected evaluations yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    rejected.slice().sort((a, b) => {
-                      const dateA = Date.parse(a.created_at ?? '')
-                      const dateB = Date.parse(b.created_at ?? '')
-                      const hasDateA = !Number.isNaN(dateA)
-                      const hasDateB = !Number.isNaN(dateB)
-                      if (hasDateA && hasDateB && dateB !== dateA) return dateB - dateA
-                      return Number(b.id) - Number(a.id)
-                    }).map((ev) => (
-                      <tr key={ev.id}>
-                        <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                                      setMessage({
+                                        type: 'success',
+                                        text: 'Evaluation approved successfully.',
+                                      })
+                                    } catch {
+                                      setMessage({
+                                        type: 'error',
+                                        text: 'Approval failed.',
+                                      })
+                                    }
+                                  }}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Approve
+                                </button>
 
-                        <td>{ev.faculty?.employee_id ?? "—"}</td>
+                                <button
+                                  type="button"
+                                  className="btn btn-warning"
+                                  onClick={async () => {
+                                    const reason = prompt("Enter rejection reason:")
+                                    if (!reason) return
 
-                        <td style={{ fontWeight: 500 }}>
-                          {ev.total_points ?? 0}
-                        </td>
+                                    try {
+                                      await api.post(`/evaluations/${ev.id}/reject`, {
+                                        reason,
+                                      })
+                                      await refreshHodLists()
 
-                        <td>{ev.reject_reason ?? "—"}</td>
+                                      setMessage({
+                                        type: 'success',
+                                        text: 'Evaluation rejected successfully.',
+                                      })
+                                    } catch {
+                                      setMessage({
+                                        type: 'error',
+                                        text: 'Rejection failed.',
+                                      })
+                                    }
+                                  }}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Reject
+                                </button>
 
-                        <td>
-                          <Link
-                            to={`/evaluation/${ev.id}/view`}
-                            className="link"
-                          >
-                            View
-                          </Link>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  onClick={() => deleteEvaluation(ev.id)}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
 
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            onClick={() => deleteEvaluation(ev.id)}
-                            style={{ marginLeft: "10px" }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+              {hodView === 'approved' && (
+                <section className="section">
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Total Points</th>
+                          <th>Approved At</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {approved.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="td-muted">
+                              No approved evaluations yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(approved).map((ev) => (
+                            <tr key={ev.id}>
+                              <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                              <td>{ev.faculty?.employee_id ?? '—'}</td>
+                              <td>{ev.academic_year}</td>
+                              <td style={{ fontWeight: 500 }}>
+                                {ev.total_points ?? 0}
+                              </td>
+                              <td>
+                                {(ev as unknown as { approved_at?: string }).approved_at ?? '—'}
+                              </td>
+                              <td>
+                                <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  className="link"
+                                >
+                                  View
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  onClick={() => deleteEvaluation(ev.id)}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {hodView === 'rejected' && (
+                <section className="section">
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Total Points</th>
+                          <th>Rejected Reason</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {rejected.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="td-muted">
+                              No rejected evaluations yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(rejected).map((ev) => (
+                            <tr key={ev.id}>
+                              <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                              <td>{ev.faculty?.employee_id ?? '—'}</td>
+                              <td>{ev.academic_year}</td>
+                              <td style={{ fontWeight: 500 }}>
+                                {ev.total_points ?? 0}
+                              </td>
+                              <td>{ev.reject_reason ?? '—'}</td>
+                              <td>
+                                <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  className="link"
+                                >
+                                  View
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  onClick={() => deleteEvaluation(ev.id)}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {hodView === 'all' && (
+                <section className="section">
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Status</th>
+                          <th>Total Points</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {allHodEvaluations.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="td-muted">
+                              No evaluations yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(allHodEvaluations).map((ev) => (
+                            <tr key={ev.id}>
+                              <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                              <td>{ev.faculty?.employee_id ?? '—'}</td>
+                              <td>{ev.academic_year}</td>
+                              <td>
+                                <span className={`badge ${ev.status}`}>
+                                  {ev.status}
+                                </span>
+                              </td>
+                              <td style={{ fontWeight: 500 }}>
+                                {ev.total_points ?? 0}
+                              </td>
+                              <td>
+                                <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  className="link"
+                                >
+                                  View
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  onClick={() => deleteEvaluation(ev.id)}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
         </>
       ) : (
         <>
@@ -407,6 +792,7 @@ const pendingMine = mine.filter(
               </Link>
             </div>
           )}
+
           <div className="card table-wrap">
             <table>
               <thead>
@@ -418,10 +804,13 @@ const pendingMine = mine.filter(
                   <th>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {mine.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="td-muted">No evaluations yet.</td>
+                    <td colSpan={5} className="td-muted">
+                      No evaluations yet.
+                    </td>
                   </tr>
                 ) : (
                   mine
@@ -431,26 +820,50 @@ const pendingMine = mine.filter(
                       const dateB = Date.parse(b.created_at ?? '')
                       const hasDateA = !Number.isNaN(dateA)
                       const hasDateB = !Number.isNaN(dateB)
+
                       if (hasDateA && hasDateB && dateB !== dateA) {
                         return dateB - dateA
                       }
+
                       return Number(b.id) - Number(a.id)
                     })
                     .map((ev) => (
-                    <tr key={ev.id}>
-                      <td>{ev.faculty?.employee_name ?? ev.faculty_id} — {ev.academic_year}</td>
-                      <td><span className={`badge ${ev.status}`}>
-                        {ev.status}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 500 }}>{ev.total_points ?? 0}</td>
-                      <td>{ev.reject_reason ?? '—'}</td>
-                      <td>
-                        <Link to={`/evaluation/${ev.id}/view`} className="link">View</Link>
-                        {ev.status === 'draft' && <Link to={`/evaluation/${ev.id}/edit`} className="link">Edit</Link>}
-                      </td>
-                    </tr>
-                  ))
+                      <tr key={ev.id}>
+                        <td>
+                          {ev.faculty?.employee_name ?? ev.faculty_id} — {ev.academic_year}
+                        </td>
+
+                        <td>
+                          <span className={`badge ${ev.status}`}>
+                            {ev.status}
+                          </span>
+                        </td>
+
+                        <td style={{ fontWeight: 500 }}>
+                          {ev.total_points ?? 0}
+                        </td>
+
+                        <td>{ev.reject_reason ?? '—'}</td>
+
+                        <td>
+                          <Link
+                            to={`/evaluation/${ev.id}/view`}
+                            className="link"
+                          >
+                            View
+                          </Link>
+
+                          {ev.status === 'draft' && (
+                            <Link
+                              to={`/evaluation/${ev.id}/edit`}
+                              className="link"
+                            >
+                              Edit
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    ))
                 )}
               </tbody>
             </table>
