@@ -6,9 +6,19 @@ import type { Evaluation, FacultyProfile } from '../types/evaluation'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const [allEvaluations, setAllEvaluations] = useState<Evaluation[]>([])
+  const [hodPage, setHodPage] = useState(1)
+  const [hodPages, setHodPages] = useState(1)
+  const [hodSearch, setHodSearch] = useState('')
   const [pending, setPending] = useState<Evaluation[]>([])
   const [approved, setApproved] = useState<Evaluation[]>([])
   const [rejected, setRejected] = useState<Evaluation[]>([])
+  const [hodCounts, setHodCounts] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    total: 0,
+  })
   const [hodView, setHodView] = useState<
     'dashboard' | 'pending' | 'approved' | 'rejected' | 'all'
   >('dashboard')
@@ -27,15 +37,17 @@ export default function Dashboard() {
         }
 
         if (user?.role === 'hod') {
-          const [pRes, aRes, rRes] = await Promise.all([
-            api.get<Evaluation[]>('/evaluations/pending'),
-            api.get<Evaluation[]>('/evaluations/approved'),
-            api.get<Evaluation[]>('/evaluations/rejected'),
+          const [pRes, aRes, rRes, countRes] = await Promise.all([
+            api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
+            api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
+            api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
+            api.get('/evaluations/counts'),
           ])
-
-          setPending(pRes.data)
-          setApproved(aRes.data)
-          setRejected(rRes.data)
+          
+          setPending(pRes.data.items)
+          setApproved(aRes.data.items)
+          setRejected(rRes.data.items)
+          setHodCounts(countRes.data)
         } else if (user?.role === 'faculty') {
           const [mineRes, profileRes] = await Promise.all([
             api.get<Evaluation[]>('/evaluations/mine'),
@@ -65,10 +77,19 @@ export default function Dashboard() {
       window.history.replaceState({}, document.title)
     }
   }, [stateMessage])
+  useEffect(() => {
+    if (user?.role !== 'hod' || hodView === 'dashboard') return
+  
+    loadHodPage(hodView, hodPage).catch(() => {
+      setMessage({
+        type: 'error',
+        text: 'Failed to load evaluations.',
+      })
+    })
+  }, [hodView, hodPage, hodSearch, user?.role])
 
-  if (loading) return <div className="loading-text">Loading...</div>
-
-  const allHodEvaluations = [...pending, ...approved, ...rejected]
+if (loading) return <div className="loading-text">Loading...</div>
+const allHodEvaluations = allEvaluations
 
   const sortRecent = (evaluations: Evaluation[]) =>
     evaluations.slice().sort((a, b) => {
@@ -105,15 +126,7 @@ export default function Dashboard() {
     try {
       await api.delete(`/evaluations/${id}`)
 
-      const [pRes, aRes, rRes] = await Promise.all([
-        api.get<Evaluation[]>('/evaluations/pending'),
-        api.get<Evaluation[]>('/evaluations/approved'),
-        api.get<Evaluation[]>('/evaluations/rejected'),
-      ])
-
-      setPending(pRes.data)
-      setApproved(aRes.data)
-      setRejected(rRes.data)
+      await refreshHodLists()
 
       setMessage({
         type: 'success',
@@ -127,18 +140,50 @@ export default function Dashboard() {
     }
   }
 
-  const refreshHodLists = async () => {
-    const [pRes, aRes, rRes] = await Promise.all([
-      api.get<Evaluation[]>('/evaluations/pending'),
-      api.get<Evaluation[]>('/evaluations/approved'),
-      api.get<Evaluation[]>('/evaluations/rejected'),
-    ])
+  async function loadHodPage(
+    view: 'pending' | 'approved' | 'rejected' | 'all',
+    page: number
+  ) {
+  const status = view === 'all' ? '' : `&status=${view}`
+  const search = hodSearch.trim()
+    ? `&search=${encodeURIComponent(hodSearch.trim())}`
+    : ''
+  
+  const res = await api.get(
+    `/evaluations/paginated?page=${page}&page_size=25${status}${search}`
+  )
 
-    setPending(pRes.data)
-    setApproved(aRes.data)
-    setRejected(rRes.data)
+  if (view === 'pending') {
+    setPending(res.data.items)
+  } else if (view === 'approved') {
+    setApproved(res.data.items)
+  } else if (view === 'rejected') {
+    setRejected(res.data.items)
+  } else {
+    setAllEvaluations(res.data.items)
   }
 
+  setHodPage(res.data.page)
+  setHodPages(res.data.pages || 1)
+}
+
+const refreshHodLists = async () => {
+  const [pRes, aRes, rRes, countRes] = await Promise.all([
+    api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
+    api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
+    api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
+    api.get('/evaluations/counts'),
+  ])
+
+  setPending(pRes.data.items)
+  setApproved(aRes.data.items)
+  setRejected(rRes.data.items)
+  setHodCounts(countRes.data)
+
+  if (hodView !== 'dashboard') {
+    await loadHodPage(hodView, hodPage)
+  }
+}
   const hodViewTitle = {
     dashboard: 'HOD Approval Dashboard',
     pending: 'Pending Evaluations',
@@ -157,40 +202,52 @@ export default function Dashboard() {
         <div className="stats-grid">
           <button
             className="stat-card"
-            onClick={() => setHodView('pending')}
+            onClick={() => {
+              setHodPage(1)
+              setHodView('pending')
+            }}
             type="button"
           >
-            <h3>{pending.length}</h3>
+            <h3>{hodCounts.pending}</h3>
             <p>Pending Evaluations</p>
             <span>View →</span>
           </button>
 
           <button
             className="stat-card"
-            onClick={() => setHodView('approved')}
+            onClick={() => {
+              setHodPage(1)
+              setHodView('approved')
+            }}
             type="button"
           >
-            <h3>{approved.length}</h3>
+            <h3>{hodCounts.approved}</h3>
             <p>Approved Evaluations</p>
             <span>View →</span>
           </button>
 
           <button
             className="stat-card"
-            onClick={() => setHodView('rejected')}
+            onClick={() => {
+              setHodPage(1)
+              setHodView('rejected')
+            }}
             type="button"
           >
-            <h3>{rejected.length}</h3>
+            <h3>{hodCounts.rejected}</h3>
             <p>Rejected Evaluations</p>
             <span>View →</span>
           </button>
 
           <button
             className="stat-card"
-            onClick={() => setHodView('all')}
+            onClick={() => {
+              setHodPage(1)
+              setHodView('all')
+            }}
             type="button"
           >
-            <h3>{allHodEvaluations.length}</h3>
+            <h3>{hodCounts.total}</h3>
             <p>Total Evaluations</p>
             <span>View →</span>
           </button>
@@ -395,12 +452,15 @@ export default function Dashboard() {
                   </table>
                 </div>
 
-                {approved.length > 5 && (
+                {hodCounts.approved > 5 && (
                   <div style={{ textAlign: 'right', marginTop: '12px' }}>
                     <button
                       type="button"
                       className="link"
-                      onClick={() => setHodView('approved')}
+                      onClick={() => {
+                        setHodPage(1)
+                        setHodView('approved')
+                      }}
                     >
                       View all →
                     </button>
@@ -465,12 +525,15 @@ export default function Dashboard() {
                   </table>
                 </div>
 
-                {rejected.length > 5 && (
+                {hodCounts.rejected > 5 && (
                   <div style={{ textAlign: 'right', marginTop: '12px' }}>
                     <button
                       type="button"
                       className="link"
-                      onClick={() => setHodView('rejected')}
+                      onClick={() => {
+                        setHodPage(1)
+                        setHodView('rejected')
+                      }}
                     >
                       View all →
                     </button>
@@ -486,12 +549,31 @@ export default function Dashboard() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setHodView('dashboard')}
+                  onClick={() => {
+  setHodSearch('')
+  setHodPage(1)
+  setHodView('dashboard')
+}}
                 >
                   ← Back to Dashboard
                 </button>
               </div>
-
+              <div className="mb-6">
+  <input
+    type="text"
+    placeholder="Search faculty name or employee ID"
+    value={hodSearch}
+    onChange={(e) => {
+      setHodSearch(e.target.value)
+      setHodPage(1)
+    }}
+    style={{
+      width: '100%',
+      maxWidth: '400px',
+      padding: '10px',
+    }}
+  />
+</div>
               {hodView === 'pending' && (
                 <section className="section">
                   <div className="card table-wrap">
@@ -597,6 +679,31 @@ export default function Dashboard() {
                         )}
                       </tbody>
                     </table>
+                    {hodPages > 1 && (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === 1}
+      onClick={() => setHodPage((page) => page - 1)}
+    >
+      ← Previous
+    </button>
+
+    <span>
+      Page {hodPage} of {hodPages}
+    </span>
+
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === hodPages}
+      onClick={() => setHodPage((page) => page + 1)}
+    >
+      Next →
+    </button>
+  </div>
+)}
                   </div>
                 </section>
               )}
@@ -657,6 +764,31 @@ export default function Dashboard() {
                         )}
                       </tbody>
                     </table>
+                    {hodPages > 1 && (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === 1}
+      onClick={() => setHodPage((page) => page - 1)}
+    >
+      ← Previous
+    </button>
+
+    <span>
+      Page {hodPage} of {hodPages}
+    </span>
+
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === hodPages}
+      onClick={() => setHodPage((page) => page + 1)}
+    >
+      Next →
+    </button>
+  </div>
+)}
                   </div>
                 </section>
               )}
@@ -715,6 +847,31 @@ export default function Dashboard() {
                         )}
                       </tbody>
                     </table>
+                    {hodPages > 1 && (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === 1}
+      onClick={() => setHodPage((page) => page - 1)}
+    >
+      ← Previous
+    </button>
+
+    <span>
+      Page {hodPage} of {hodPages}
+    </span>
+
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === hodPages}
+      onClick={() => setHodPage((page) => page + 1)}
+    >
+      Next →
+    </button>
+  </div>
+)}
                   </div>
                 </section>
               )}
@@ -777,6 +934,31 @@ export default function Dashboard() {
                         )}
                       </tbody>
                     </table>
+                    {hodPages > 1 && (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === 1}
+      onClick={() => setHodPage((page) => page - 1)}
+    >
+      ← Previous
+    </button>
+
+    <span>
+      Page {hodPage} of {hodPages}
+    </span>
+
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === hodPages}
+      onClick={() => setHodPage((page) => page + 1)}
+    >
+      Next →
+    </button>
+  </div>
+)}
                   </div>
                 </section>
               )}

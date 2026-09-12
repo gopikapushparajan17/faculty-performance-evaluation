@@ -358,7 +358,123 @@ def list_evaluations_all():
 
     finally:
         db.close()
+def list_evaluations_paginated(
+    page: int = 1,
+    page_size: int = 25,
+    status: str | None = None,
+    search: str | None = None,
+):
+    db = SessionLocal()
 
+    try:
+        page = max(page, 1)
+        page_size = min(max(page_size, 1), 100)
+
+        query = (
+            db.query(EvaluationDB)
+            .join(FacultyDB, EvaluationDB.faculty_id == FacultyDB.id)
+        )
+
+        if status:
+            query = query.filter(EvaluationDB.status == status)
+
+        if search:
+            search_term = f"%{search.strip()}%"
+            query = query.filter(
+                (FacultyDB.name.ilike(search_term))
+                | (FacultyDB.emp_id.ilike(search_term))
+            )
+
+        total = query.count()
+
+        evaluations = (
+            query
+            .add_columns(FacultyDB)
+            .order_by(EvaluationDB.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        result = []
+
+        for e, faculty_db in evaluations:
+            faculty = FacultyProfile(
+                id=str(faculty_db.id),
+                user_id=str(faculty_db.user_id),
+                department_name=faculty_db.dept,
+                employee_id=faculty_db.emp_id,
+                employee_name=faculty_db.name,
+                orcid=faculty_db.orcid,
+                official_email=faculty_db.email,
+                phone_number=faculty_db.phone,
+            )
+
+            result.append(
+                Evaluation(
+                    id=str(e.id),
+                    faculty_id=str(e.faculty_id),
+                    faculty=faculty,
+                    ef_id=str(e.ef_id),
+                    academic_year=e.academic_year or "",
+                    status=e.status or "draft",
+                    modules=EvaluationModules(**(e.modules or {})),
+                    total_points=e.total_points or 0,
+                    approved_at=e.approved_at,
+                    approved_by=e.approved_by,
+                    reject_reason=e.reject_reason,
+                    faculty_signature=e.faculty_signature,
+                    hod_signature=e.hod_signature,
+                    principal_signature=e.principal_signature,
+                )
+            )
+
+        pages = (total + page_size - 1) // page_size
+
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+
+    finally:
+        db.close()
+
+def get_evaluation_counts():
+    db = SessionLocal()
+
+    try:
+        pending = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "pending")
+            .count()
+        )
+
+        approved = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "approved")
+            .count()
+        )
+
+        rejected = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "rejected")
+            .count()
+        )
+
+        total = db.query(EvaluationDB).count()
+
+        return {
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+            "total": total,
+        }
+
+    finally:
+        db.close()
 def update_evaluation(eid: str, data: dict):
     db = SessionLocal()
 

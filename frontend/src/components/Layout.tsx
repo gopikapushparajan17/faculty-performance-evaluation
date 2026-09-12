@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext'
 
 import {
   FaHome,
-  FaPlus,
   FaUserPlus,
   FaSignOutAlt,
   FaUniversity,

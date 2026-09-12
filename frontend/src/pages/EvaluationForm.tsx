@@ -7,7 +7,6 @@ import ModuleCard from '../components/ModuleCard'
 import ProofUpload from '../components/ProofUpload'
 import {
   studentFeedbackPoints,
-  journalIndexPoints,
   conferencePoints,
   bookChaptersPoints,
   booksPoints,

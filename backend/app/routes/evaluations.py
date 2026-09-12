@@ -7,6 +7,8 @@ from app.crud import (
     get_evaluation,
     update_evaluation,
     list_evaluations_all,
+    list_evaluations_paginated,
+    get_evaluation_counts,
     list_faculty,
     get_faculty,
     delete_evaluation,
@@ -161,6 +163,24 @@ def list_my_evaluations(user: User = Depends(require_role("faculty"))):
 def list_all_evaluations(_: User = Depends(require_role("hod"))):
     return list_evaluations_all()
 
+@router.get("/paginated")
+def list_evaluations_paginated_route(
+    page: int = 1,
+    page_size: int = 25,
+    status: str | None = None,
+    search: str | None = None,
+    _: User = Depends(require_role("hod")),
+):
+    return list_evaluations_paginated(
+    page=page,
+    page_size=page_size,
+    status=status,
+    search=search,
+)
+
+@router.get("/counts")
+def evaluation_counts(_: User = Depends(require_role("hod"))):
+    return get_evaluation_counts()
 
 @router.get("/{eid}")
 def get_eval(eid: str, user: User = Depends(get_current_user)):
@@ -268,6 +288,7 @@ def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
         },
     )
     return {"status": "rejected"}
+
 
 @router.get("/{eid}/pdf")
 def generate_pdf(eid: str):
