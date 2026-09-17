@@ -11,6 +11,7 @@ from app.crud import (
     get_evaluation_counts,
     list_faculty,
     get_faculty,
+    get_principal_evaluation_counts,
     delete_evaluation,
 )
 
@@ -128,7 +129,11 @@ def list_pending(_: User = Depends(require_role("hod"))):
 
 @router.get("/approved")
 def list_approved(_: User = Depends(require_role("hod"))):
-    return [e for e in list_evaluations_all() if e.status == "approved"]
+    return [
+        e
+        for e in list_evaluations_all()
+        if e.status in ("hod_approved", "approved")
+    ]
 
 @router.get("/rejected", response_model=list[Evaluation])
 def list_rejected(_: User = Depends(require_role("hod"))):
@@ -169,18 +174,37 @@ def list_evaluations_paginated_route(
     page_size: int = 25,
     status: str | None = None,
     search: str | None = None,
-    _: User = Depends(require_role("hod")),
+    user: User = Depends(require_role("hod", "principal")),
 ):
+    if user.role == "principal":
+        allowed_statuses = {
+            "hod_approved",
+            "approved",
+            "rejected",
+        }
+
+        if status is not None and status not in allowed_statuses:
+            raise HTTPException(
+                status_code=403,
+                detail="Principal cannot view this evaluation status",
+            )
+
     return list_evaluations_paginated(
-    page=page,
-    page_size=page_size,
-    status=status,
-    search=search,
-)
+        page=page,
+        page_size=page_size,
+        status=status,
+        search=search,
+        include_final_approved=user.role == "hod",
+    )
 
 @router.get("/counts")
 def evaluation_counts(_: User = Depends(require_role("hod"))):
     return get_evaluation_counts()
+@router.get("/principal-counts")
+def principal_evaluation_counts(
+    _: User = Depends(require_role("principal")),
+):
+    return get_principal_evaluation_counts()
 
 @router.get("/{eid}")
 def get_eval(eid: str, user: User = Depends(get_current_user)):
@@ -246,38 +270,53 @@ def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
 @router.post("/{eid}/approve")
 def hod_approve(eid: str, user: User = Depends(require_role("hod"))):
     ev = get_evaluation(eid)
+
     if not ev:
         raise HTTPException(404, "Invalid evaluation ID")
+
     if ev.status == "approved":
         raise HTTPException(409, "This evaluation was already approved.")
+
     if ev.status != "pending":
         raise HTTPException(400, "Evaluation is not pending approval")
 
     # Validate proofs again server-side before approving
     _validate_modules_for_submit(ev.modules)
+
     update_evaluation(
         eid,
         {
-            "status": "approved",
+            "status": "hod_approved",
             "approved_at": datetime.utcnow().isoformat(),
             "approved_by": user.id,
         },
     )
-    return {"status": "approved"}
+
+    return {"status": "hod_approved"}
 
 
 @router.post("/{eid}/reject")
-def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
+def hod_reject(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("hod")),
+):
     ev = get_evaluation(eid)
+
     if not ev:
         raise HTTPException(404, "Invalid evaluation ID")
+
     if ev.status == "approved":
         raise HTTPException(409, "This evaluation was already approved.")
+
     if ev.status != "pending":
         raise HTTPException(400, "Evaluation is not pending approval")
+
     reason = str(body.get("reason") or "").strip()
+
     if not reason:
         raise HTTPException(400, "Reject reason is required")
+
     update_evaluation(
         eid,
         {
@@ -287,6 +326,72 @@ def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
             "reject_reason": reason,
         },
     )
+
+    return {"status": "rejected"}
+
+
+@router.post("/{eid}/principal-approve")
+def principal_approve(
+    eid: str,
+    user: User = Depends(require_role("principal")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Invalid evaluation ID")
+
+    if ev.status != "hod_approved":
+        raise HTTPException(
+            400,
+            "Only HOD-approved evaluations can be approved by the Principal",
+        )
+
+    _validate_modules_for_submit(ev.modules)
+
+    update_evaluation(
+        eid,
+        {
+            "status": "approved",
+            "approved_at": datetime.utcnow().isoformat(),
+            "approved_by": user.id,
+        },
+    )
+
+    return {"status": "approved"}
+
+
+@router.post("/{eid}/principal-reject")
+def principal_reject(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("principal")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Invalid evaluation ID")
+
+    if ev.status != "hod_approved":
+        raise HTTPException(
+            400,
+            "Only HOD-approved evaluations can be rejected by the Principal",
+        )
+
+    reason = str(body.get("reason") or "").strip()
+
+    if not reason:
+        raise HTTPException(400, "Rejection reason is required")
+
+    update_evaluation(
+        eid,
+        {
+            "status": "rejected",
+            "approved_at": datetime.utcnow().isoformat(),
+            "approved_by": user.id,
+            "reject_reason": reason,
+        },
+    )
+
     return {"status": "rejected"}
 
 
@@ -328,37 +433,3 @@ def delete_eval(eid: str, _: User = Depends(require_role("hod"))):
 
     return {"message": "Evaluation deleted successfully"}
 
-@router.post("/{eid}/reject")
-def hod_reject(
-    eid: str,
-    body: dict,
-    user: User = Depends(require_role("hod")),
-):
-    ev = get_evaluation(eid)
-
-    if not ev:
-        raise HTTPException(404, "Invalid evaluation ID")
-
-    if ev.status == "approved":
-        raise HTTPException(400, "Approved evaluations cannot be rejected")
-
-    if ev.status == "rejected":
-        raise HTTPException(409, "Evaluation is already rejected")
-
-    if ev.status != "pending":
-        raise HTTPException(400, "Only pending evaluations can be rejected")
-
-    reason = body.get("reason", "").strip()
-
-    if not reason:
-        raise HTTPException(400, "Rejection reason is required")
-
-    update_evaluation(
-        eid,
-        {
-            "status": "rejected",
-            "reject_reason": reason,
-        },
-    )
-
-    return {"status": "rejected"}

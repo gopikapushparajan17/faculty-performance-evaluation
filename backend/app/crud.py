@@ -363,6 +363,7 @@ def list_evaluations_paginated(
     page_size: int = 25,
     status: str | None = None,
     search: str | None = None,
+    include_final_approved: bool = False,
 ):
     db = SessionLocal()
 
@@ -375,8 +376,16 @@ def list_evaluations_paginated(
             .join(FacultyDB, EvaluationDB.faculty_id == FacultyDB.id)
         )
 
-        if status:
-            query = query.filter(EvaluationDB.status == status)
+        if status == "hod_approved" and include_final_approved:
+            query = query.filter(
+                EvaluationDB.status.in_(
+                    ["hod_approved", "approved"]
+                )
+            )
+        elif status:
+            query = query.filter(
+                EvaluationDB.status == status
+            )
 
         if search:
             search_term = f"%{search.strip()}%"
@@ -429,13 +438,13 @@ def list_evaluations_paginated(
                 )
             )
 
-        pages = (total + page_size - 1) // page_size
+        pages = max((total + page_size - 1) // page_size, 1)
 
         return {
             "items": result,
-            "total": total,
             "page": page,
             "page_size": page_size,
+            "total": total,
             "pages": pages,
         }
 
@@ -454,7 +463,11 @@ def get_evaluation_counts():
 
         approved = (
             db.query(EvaluationDB)
-            .filter(EvaluationDB.status == "approved")
+            .filter(
+                EvaluationDB.status.in_(
+                    ["hod_approved", "approved"]
+                )
+            )
             .count()
         )
 
@@ -469,6 +482,39 @@ def get_evaluation_counts():
         return {
             "pending": pending,
             "approved": approved,
+            "rejected": rejected,
+            "total": total,
+        }
+
+    finally:
+        db.close()
+def get_principal_evaluation_counts():
+    db = SessionLocal()
+
+    try:
+        awaiting_review = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "hod_approved")
+            .count()
+        )
+
+        final_approved = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "approved")
+            .count()
+        )
+
+        rejected = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "rejected")
+            .count()
+        )
+
+        total = db.query(EvaluationDB).count()
+
+        return {
+            "awaiting_review": awaiting_review,
+            "final_approved": final_approved,
             "rejected": rejected,
             "total": total,
         }

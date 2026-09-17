@@ -1,4 +1,9 @@
-export type EvaluationStatus = 'draft' | 'pending' | 'approved' | 'rejected'
+export type EvaluationStatus =
+  | 'draft'
+  | 'pending'
+  | 'hod_approved'
+  | 'approved'
+  | 'rejected'
 
 export interface FacultyProfile {
   id: string

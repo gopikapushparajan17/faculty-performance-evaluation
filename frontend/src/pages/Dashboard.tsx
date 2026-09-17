@@ -39,7 +39,7 @@ export default function Dashboard() {
         if (user?.role === 'hod') {
           const [pRes, aRes, rRes, countRes] = await Promise.all([
             api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
-            api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
+            api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
             api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
             api.get('/evaluations/counts'),
           ])
@@ -170,7 +170,7 @@ const allHodEvaluations = allEvaluations
 const refreshHodLists = async () => {
   const [pRes, aRes, rRes, countRes] = await Promise.all([
     api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
-    api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
+    api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
     api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
     api.get('/evaluations/counts'),
   ])

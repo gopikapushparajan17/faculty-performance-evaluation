@@ -162,7 +162,7 @@ class Evaluation(BaseModel):
     faculty: Optional[FacultyProfile] = None
     ef_id: Optional[str] = None
     academic_year: str = ""
-    status: str = "draft"  # draft | pending | approved | rejected
+    status: str = "draft"  # draft | pending | hod_approved | approved | rejected
     modules: EvaluationModules = EvaluationModules()
     total_points: int = 0
     approved_at: Optional[str] = None

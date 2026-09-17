@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import type { Evaluation } from '../types/evaluation'
 
-const statusFlow = ['Draft', 'Pending', 'Approved', 'Rejected'] as const
+const statusFlow = ['Draft', 'Pending', 'HOD Approved', 'Approved', 'Rejected'] as const
 
 function ProofLink({ url }: { url?: string }) {
   if (!url) {
@@ -313,6 +313,100 @@ export default function EvaluationView() {
     }
   }
 
+  const approveAsPrincipal = async () => {
+    if (!evaluationId) return
+
+    try {
+      await api.post(
+        `/evaluations/${evaluationId}/principal-approve`
+      )
+
+      setEvalData((e) =>
+        e
+          ? {
+              ...e,
+              status: 'approved',
+            }
+          : null
+      )
+
+      alert('Evaluation finally approved by Principal.')
+    } catch (err: unknown) {
+      const detail =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (
+              err as {
+                response?: {
+                  data?: {
+                    detail?: string
+                  }
+                }
+              }
+            ).response?.data?.detail
+          : null
+
+      alert(
+        typeof detail === 'string'
+          ? detail
+          : 'Principal approval failed.'
+      )
+    }
+  }
+
+  const rejectAsPrincipal = async () => {
+    if (!evaluationId) return
+
+    const reason = window.prompt(
+      'Enter rejection reason:'
+    )
+
+    if (!reason?.trim()) return
+
+    try {
+      await api.post(
+        `/evaluations/${evaluationId}/principal-reject`,
+        {
+          reason,
+        }
+      )
+
+      setEvalData((e) =>
+        e
+          ? {
+              ...e,
+              status: 'rejected',
+              reject_reason: reason,
+            }
+          : null
+      )
+
+      alert('Evaluation rejected by Principal.')
+    } catch (err: unknown) {
+      const detail =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (
+              err as {
+                response?: {
+                  data?: {
+                    detail?: string
+                  }
+                }
+              }
+            ).response?.data?.detail
+          : null
+
+      alert(
+        typeof detail === 'string'
+          ? detail
+          : 'Principal rejection failed.'
+      )
+    }
+  }
+
   const downloadPdf = async () => {
     if (!evaluationId) return
 
@@ -368,6 +462,10 @@ export default function EvaluationView() {
     user?.role === 'hod' &&
     evalData.status === 'pending'
 
+  const canPrincipalApprove =
+    user?.role === 'principal' &&
+    String(evalData.status) === 'hod_approved'
+
   return (
     <div>
       <div className="eval-header">
@@ -413,7 +511,10 @@ export default function EvaluationView() {
           <span
             key={label}
             className={`eval-status-dot ${
-              evalData.status === label.toLowerCase()
+              evalData.status ===
+              (label === 'HOD Approved'
+                ? 'hod_approved'
+                : label.toLowerCase())
                 ? 'active'
                 : 'inactive'
             }`}
@@ -433,13 +534,19 @@ export default function EvaluationView() {
           </div>
 
           <div
-            className={`status-card status-${evalData.status}`}
-          >
-            <h2>Status</h2>
-            <h1>
-              {evalData.status.toUpperCase()}
-            </h1>
-          </div>
+  className={`status-card status-${
+    evalData.status === 'hod_approved'
+      ? 'hod-approved'
+      : evalData.status
+  }`}
+>
+  <h2>Status</h2>
+  <h1>
+    {evalData.status === 'hod_approved'
+      ? 'HOD APPROVED'
+      : evalData.status.toUpperCase()}
+  </h1>
+</div>
         </div>
 
         <h2 className="section-title">
@@ -796,12 +903,16 @@ export default function EvaluationView() {
         </h2>
 
         <p
-          className="form-label"
-          style={{ marginTop: 0 }}
-        >
-          Status:{' '}
-          <strong>{evalData.status}</strong>
-        </p>
+  className="form-label"
+  style={{ marginTop: 0 }}
+>
+  Status:{' '}
+  <strong>
+    {evalData.status === 'hod_approved'
+      ? 'HOD Approved'
+      : evalData.status}
+  </strong>
+</p>
 
         <div className="form-actions">
   {canHodApprove && (
@@ -817,6 +928,25 @@ export default function EvaluationView() {
       <button
         type="button"
         onClick={rejectAsHod}
+        className="btn btn-danger"
+      >
+        Reject
+      </button>
+    </>
+  )}
+  {canPrincipalApprove && (
+    <>
+      <button
+        type="button"
+        onClick={approveAsPrincipal}
+        className="btn btn-success"
+      >
+        Approve
+      </button>
+
+      <button
+        type="button"
+        onClick={rejectAsPrincipal}
         className="btn btn-danger"
       >
         Reject

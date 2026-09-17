@@ -660,6 +660,9 @@ td {
 .status-pending {
   background: #d97706;
 }
+.status-hod-approved {
+  background: #2563eb;
+}
 
 .status-rejected {
   background: #dc2626;
