@@ -12,28 +12,25 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
-    print("TOKEN:", token)
-
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print("PAYLOAD:", payload)
-
         user_id = payload.get("sub")
-        print("USER_ID:", user_id)
 
         if not user_id:
+            print("Authentication failed: token missing subject")
             raise HTTPException(status_code=401, detail="Invalid token: missing subject")
 
-    except JWTError as e:
-        print("JWT ERROR:", e)
+    except JWTError:
+        print("Authentication failed: invalid or expired token")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     user = get_user_by_id(str(user_id))
-    print("USER:", user)
 
     if not user:
+        print(f"User lookup failed for user_id={user_id}")
         raise HTTPException(status_code=401, detail="User not found")
 
+    print(f"Authentication successful for user_id={user.id}, role={user.role}")
     return user
 
 
