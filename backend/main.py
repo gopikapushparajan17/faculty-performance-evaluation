@@ -4,8 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from app.routes import auth, faculty, evaluations, upload, publications
+from app.scopus_updater import start_scopus_updater
 
 app = FastAPI(title="Faculty Performance Evaluation API")
+start_scopus_updater()
 
 app.add_middleware(
     CORSMiddleware,

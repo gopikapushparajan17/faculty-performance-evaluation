@@ -6,6 +6,7 @@ A successful match does not prove Scopus (or any other) indexing.
 
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, unquote, quote, urlparse
 from app.scopus_checker import check_scopus_source
 from app.wos_checker import check_web_of_science
@@ -245,6 +246,11 @@ def verify_publication(publication_input, faculty=None):
         source_url_out = f"https://doi.org/{doi}"
 
     try:
+        wos_executor = ThreadPoolExecutor(max_workers=1)
+        wos_future = wos_executor.submit(
+            check_web_of_science,
+            doi,
+        )
         response = requests.get(
             url,
             headers=_crossref_headers(),
@@ -339,9 +345,8 @@ def verify_publication(publication_input, faculty=None):
 
     result["scopus_status"] = scopus_result.get("status")
     result["scopus_source"] = scopus_result
-    result["web_of_science"] = check_web_of_science(
-        result.get("doi")
-    )
+    result["web_of_science"] = wos_future.result()
+    wos_executor.shutdown(wait=True)
 
     return result
 
