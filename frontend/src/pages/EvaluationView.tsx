@@ -313,6 +313,47 @@ export default function EvaluationView() {
     }
   }
 
+  const downloadPdf = async () => {
+    if (!evaluationId) return
+
+    try {
+      const response = await api.get<Blob>(`/evaluations/${evaluationId}/pdf`, {
+        responseType: 'blob',
+      })
+
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `evaluation_${evaluationId}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      const detail =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (
+              err as {
+                response?: {
+                  data?: {
+                    detail?: string
+                  }
+                }
+              }
+            ).response?.data?.detail
+          : null
+
+      alert(
+        typeof detail === 'string'
+          ? detail
+          : 'Failed to download evaluation PDF.'
+      )
+    }
+  }
+
   if (loading || !evalData) {
     return <div className="loading-text">Loading...</div>
   }
@@ -787,12 +828,7 @@ export default function EvaluationView() {
   <button
     type="button"
     className="btn btn-primary"
-    onClick={() =>
-      window.open(
-        `http://localhost:8000/api/evaluations/${evaluationId}/pdf`,
-        '_blank'
-      )
-    }
+    onClick={downloadPdf}
   >
     Generate PDF
   </button>

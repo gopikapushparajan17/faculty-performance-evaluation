@@ -291,17 +291,19 @@ def hod_reject(eid: str, body: dict, user: User = Depends(require_role("hod"))):
 
 
 @router.get("/{eid}/pdf")
-def generate_pdf(eid: str):
-
+def generate_pdf(
+    eid: str,
+    user: User = Depends(get_current_user),
+):
     ev = get_evaluation(eid)
 
     if not ev:
         raise HTTPException(404, "Evaluation not found")
 
-    faculty = get_faculty(ev.faculty_id)
+    if user.role == "faculty" and str(ev.ef_id) != str(user.id):
+        raise HTTPException(403, "Access denied")
 
-    print("FACULTY =", faculty)
-    print("FACULTY NAME =", faculty.employee_name if faculty else None)
+    faculty = get_faculty(ev.faculty_id)
 
     filename = f"evaluation_{eid}.pdf"
 
