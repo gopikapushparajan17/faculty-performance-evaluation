@@ -1,6 +1,16 @@
 import os
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Add SECRET_KEY=<random hex> to backend/.env for local development."
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
