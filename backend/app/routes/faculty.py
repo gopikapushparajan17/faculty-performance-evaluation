@@ -71,8 +71,16 @@ def create_faculty_route(body: FacultyAccountCreate, current_user: User = Depend
 
 
 @router.put("/{fid}")
-def update_faculty_route(fid: str, body: FacultyCreate, _: User = Depends(require_role("faculty"))):
-    f = update_faculty(fid, body.model_dump())
+def update_faculty_route(
+    fid: str,
+    body: FacultyCreate,
+    current_user: User = Depends(require_role("faculty")),
+):
+    f = get_faculty(fid)
     if not f:
         raise HTTPException(404, "Faculty not found")
-    return f
+
+    if str(f.user_id) != str(current_user.id):
+        raise HTTPException(403, "Access denied")
+
+    return update_faculty(fid, body.model_dump())
