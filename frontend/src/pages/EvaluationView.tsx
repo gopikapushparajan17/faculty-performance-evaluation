@@ -6,6 +6,12 @@ import type { Evaluation } from '../types/evaluation'
 
 const statusFlow = ['Draft', 'Pending', 'HOD Approved', 'Approved', 'Rejected'] as const
 
+function facultyPositionLabel(position?: string) {
+  if (position === 'assistant_professor') return 'Assistant Professor'
+  if (position === 'professor') return 'Professor'
+  return 'Associate Professor'
+}
+
 function ProofLink({ url }: { url?: string }) {
   if (!url) {
     return <span style={{ opacity: 0.6 }}>No proof uploaded</span>
@@ -548,6 +554,10 @@ export default function EvaluationView() {
   </h1>
 </div>
         </div>
+
+        <p className="form-label" style={{ marginBottom: '1rem' }}>
+          Faculty Position: {facultyPositionLabel(evalData.faculty_position)}
+        </p>
 
         <h2 className="section-title">
           Score Breakdown

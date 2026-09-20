@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 from pydantic import BaseModel
 
 
@@ -162,6 +162,11 @@ class Evaluation(BaseModel):
     faculty: Optional[FacultyProfile] = None
     ef_id: Optional[str] = None
     academic_year: str = ""
+    faculty_position: Literal[
+        "assistant_professor",
+        "associate_professor",
+        "professor"
+    ] = "associate_professor"
     status: str = "draft"  # draft | pending | hod_approved | approved | rejected
     modules: EvaluationModules = EvaluationModules()
     total_points: int = 0

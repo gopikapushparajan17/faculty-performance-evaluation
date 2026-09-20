@@ -1,7 +1,22 @@
-import type { EvaluationModules } from '../types/evaluation'
+import type { EvaluationModules, FacultyPosition } from '../types/evaluation'
 
-// 1. Student Feedback: ≥85→15, 70-84→10, 60-69→7, <60→5
-export function studentFeedbackPoints(pct: number): number {
+// 1. Student Feedback: ≥85→15, 70-84→10, 60-69→7, <60→5 (associate professor default)
+export function studentFeedbackPoints(
+  pct: number,
+  facultyPosition: FacultyPosition = 'associate_professor',
+): number {
+  if (facultyPosition === 'assistant_professor') {
+    if (pct >= 85) return 20
+    if (pct >= 70) return 15
+    if (pct >= 60) return 12
+    return 10
+  }
+  if (facultyPosition === 'professor') {
+    if (pct >= 85) return 10
+    if (pct >= 70) return 8
+    if (pct >= 60) return 5
+    return 3
+  }
   if (pct >= 85) return 15
   if (pct >= 70) return 10
   if (pct >= 60) return 7

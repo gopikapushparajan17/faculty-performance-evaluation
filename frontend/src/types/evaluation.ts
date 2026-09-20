@@ -5,6 +5,11 @@ export type EvaluationStatus =
   | 'approved'
   | 'rejected'
 
+  export type FacultyPosition =
+  | 'assistant_professor'
+  | 'associate_professor'
+  | 'professor'
+
 export interface FacultyProfile {
   id: string
   department_name: string
@@ -209,6 +214,7 @@ export interface Evaluation {
   id: string
   faculty_id: string
   faculty?: FacultyProfile
+  faculty_position?: FacultyPosition
   ef_id?: string
   academic_year: string
   status: EvaluationStatus

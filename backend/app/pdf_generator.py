@@ -136,6 +136,11 @@ def build_faculty_details(content, styles, evaluation, faculty) -> None:
         ["Email", faculty.official_email if faculty else "N/A"],
         ["Phone", faculty.phone_number if faculty else "N/A"],
         ["Academic Year", evaluation.academic_year],
+        ["Faculty Position", {
+            "assistant_professor": "Assistant Professor",
+            "associate_professor": "Associate Professor",
+            "professor": "Professor",
+        }.get(getattr(evaluation, "faculty_position", None) or "associate_professor", "Associate Professor")],
         ["Status", evaluation.status],
     ]
 
@@ -152,6 +157,7 @@ def build_summary_table(content, styles, modules, total_points) -> None:
     data = [
         ["Metric", "Points"],
         ["Student Feedback", modules.student_feedback.points],
+        ["Journal Index", modules.journal_index.points],
         ["Conference Articles", modules.conference_articles.points],
         ["Book Chapters", modules.book_chapters.points],
         ["Books", modules.books.points],

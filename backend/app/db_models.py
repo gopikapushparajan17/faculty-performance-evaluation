@@ -42,6 +42,7 @@ class EvaluationDB(Base):
     ef_id = Column(BigInteger, nullable=False)
 
     academic_year = Column(String(20))
+    faculty_position = Column(String(30), nullable=False, default="associate_professor")
     status = Column(String(20))
 
     modules = Column(JSON)

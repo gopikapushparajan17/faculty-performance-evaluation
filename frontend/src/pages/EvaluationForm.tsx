@@ -18,7 +18,7 @@ import {
   instActivitiesPoints,
   fdpOrganizedPoints,
 } from '../lib/pointRules'
-import type { Evaluation, EvaluationModules } from '../types/evaluation'
+import type { Evaluation, EvaluationModules, FacultyPosition } from '../types/evaluation'
 
 const defaultModules: EvaluationModules = {
   student_feedback: { percentage: '', points: 0 },
@@ -65,6 +65,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     defaultValues: {
       faculty_id: facultyId ?? '',
       academic_year: new Date().getFullYear().toString(),
+      faculty_position: 'associate_professor',
       status: 'draft',
       modules: defaultModules,
       total_points: 0,
@@ -72,12 +73,13 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
   })
 
   const modules = useWatch({ control: form.control, name: 'modules', defaultValue: defaultModules })
+  const facultyPosition = (useWatch({ control: form.control, name: 'faculty_position' }) ?? 'associate_professor') as FacultyPosition
 
   const computed = useMemo(() => {
     const m = modules ?? defaultModules
 
     const sf = hasText(m.student_feedback?.percentage)
-      ? studentFeedbackPoints(Number(m.student_feedback!.percentage))
+      ? studentFeedbackPoints(Number(m.student_feedback!.percentage), facultyPosition)
       : 0
     const journal =
       hasText(m.journal_index?.scopus_link) &&
@@ -148,7 +150,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
       fdp_organized: fdpO,
       total,
     }
-  }, [modules])
+  }, [modules, facultyPosition])
 /*
 // TODO:
 // Re-enable score persistence without triggering infinite re-renders.
@@ -178,6 +180,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
         form.reset({
           ...data,
           id: data.id,
+          faculty_position: data.faculty_position ?? 'associate_professor',
           modules: data.modules ?? defaultModules,
         })
       }).catch(() => {})
@@ -254,6 +257,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     const payload: FormValues = {
       ...data,
       faculty_id: facultyId ?? data.faculty_id,
+      faculty_position: data.faculty_position ?? 'associate_professor',
       modules,
       total_points: computed.total,
       status: 'draft',
@@ -453,9 +457,24 @@ const verifyJournalPublication = async () => {
       <p className="form-label" style={{ marginBottom: '1.5rem' }}>Academic year: {form.watch('academic_year')}</p>
 
       <form onSubmit={form.handleSubmit(onSubmit)}>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Faculty Position
+          </label>
+          <select {...form.register('faculty_position')} className="input">
+            <option value="assistant_professor">Assistant Professor</option>
+            <option value="associate_professor">Associate Professor</option>
+            <option value="professor">Professor</option>
+          </select>
+        </div>
+
         {/* Module 1: Student Feedback */}
         <ModuleCard title="1. Student Feedback" points={computed.student_feedback} defaultOpen>
-          <p className="form-label" style={{ marginBottom: '0.5rem' }}>≥85% → 15 pts, 70–84% → 10, 60–69% → 7, &lt;60% → 5</p>
+          <p className="form-label" style={{ marginBottom: '0.5rem' }}>
+            {facultyPosition === 'assistant_professor' && '≥85% → 20 pts, 70–84% → 15, 60–69% → 12, <60% → 10'}
+            {facultyPosition === 'associate_professor' && '≥85% → 15 pts, 70–84% → 10, 60–69% → 7, <60% → 5'}
+            {facultyPosition === 'professor' && '≥85% → 10 pts, 70–84% → 8, 60–69% → 5, <60% → 3'}
+          </p>
           <select {...form.register('modules.student_feedback.percentage')} className="input input-w-40">
             <option value="">Select %</option>
             {['90', '85', '80', '75', '70', '65', '60', '55', '50'].map((p) => (
