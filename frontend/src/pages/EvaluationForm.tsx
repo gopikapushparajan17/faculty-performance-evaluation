@@ -57,7 +57,7 @@ export default function EvaluationForm() {
   const [conferenceVerificationError, setConferenceVerificationError] = useState<Record<number, string>>({})
 
   const [bookChapterVerificationLoading, setBookChapterVerificationLoading] = useState<Record<number, boolean>>({})
-const [bookChapterVerificationError, setBookChapterVerificationError] = useState<Record<number, string>>({})
+  const [bookChapterVerificationError, setBookChapterVerificationError] = useState<Record<number, string>>({})
   
   const editId = evaluationId
 
@@ -81,6 +81,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     const sf = hasText(m.student_feedback?.percentage)
       ? studentFeedbackPoints(Number(m.student_feedback!.percentage), facultyPosition)
       : 0
+
     const journal =
       hasText(m.journal_index?.scopus_link) &&
       m.journal_index?.verification?.scopus_status === 'source_covered'
@@ -151,6 +152,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
       total,
     }
   }, [modules, facultyPosition])
+
 /*
 // TODO:
 // Re-enable score persistence without triggering infinite re-renders.
@@ -170,6 +172,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     form.setValue('total_points', computed.total, { shouldDirty: false })
   }, [computed])
 */
+
   useEffect(() => {
     if (editId) {
       api.get<Evaluation>(`/evaluations/${editId}`).then(({ data }) => {
@@ -177,6 +180,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
           navigate(`/evaluation/${data.id}/view`, { replace: true })
           return
         }
+
         form.reset({
           ...data,
           id: data.id,
@@ -189,7 +193,7 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     }
   }, [editId])
 
- const persistDraft = async (data: FormValues) => {
+  const persistDraft = async (data: FormValues) => {
     const modules = {
       ...(data.modules ?? defaultModules),
 
@@ -275,63 +279,65 @@ const [bookChapterVerificationError, setBookChapterVerificationError] = useState
     return ev
   }
 
- const onSubmit = async (data: FormValues) => {
-  try {
-    await persistDraft(data)
-    navigate('/dashboard', { state: { message: 'Draft saved.' } })
-  } catch (err: any) {
-    console.error(err)
+  const onSubmit = async (data: FormValues) => {
+    try {
+      await persistDraft(data)
+      navigate('/dashboard', { state: { message: 'Draft saved.' } })
+    } catch (err: any) {
+      console.error(err)
 
-    if (err.response?.status === 409) {
-      alert("An evaluation for this academic year already exists.")
-    } else {
-      alert("Something went wrong while saving the evaluation.")
+      if (err.response?.status === 409) {
+        alert("An evaluation for this academic year already exists.")
+      } else {
+        alert("Something went wrong while saving the evaluation.")
+      }
     }
   }
-}
 
-const verifyJournalPublication = async () => {
-  const url = form.getValues('modules.journal_index.scopus_link')?.trim()
+  const verifyJournalPublication = async () => {
+    const url = form.getValues('modules.journal_index.scopus_link')?.trim()
 
-  if (!url) {
-    setVerificationError('Please enter a DOI or publication URL first.')
-    return
-  }
+    if (!url) {
+      setVerificationError('Please enter a DOI or publication URL first.')
+      return
+    }
 
-  setVerificationLoading(true)
-  setVerificationError('')
+    setVerificationLoading(true)
+    setVerificationError('')
 
-  try {
-    const { data } = await api.post('/publications/verify', {
-      publication_url: url,
-    })
+    try {
+      const { data } = await api.post('/publications/verify', {
+        publication_url: url,
+      })
 
-    form.setValue(
-      'modules.journal_index.verification',
-      data,
-      { shouldDirty: true }
-    )
-    if (data.title) {
       form.setValue(
-        'modules.journal_index.title',
-        data.title,
+        'modules.journal_index.verification',
+        data,
         { shouldDirty: true }
       )
+
+      if (data.title) {
+        form.setValue(
+          'modules.journal_index.title',
+          data.title,
+          { shouldDirty: true }
+        )
+      }
+    } catch (err: any) {
+      console.error('Publication verification failed:', err)
+
+      const detail = err?.response?.data?.detail
+
+      setVerificationError(
+        typeof detail === 'string'
+          ? detail
+          : 'Publication verification failed. Please check the link and try again.'
+      )
+    } finally {
+      setVerificationLoading(false)
     }
-  } catch (err: any) {
-    console.error('Publication verification failed:', err)
-
-    const detail = err?.response?.data?.detail
-
-    setVerificationError(
-      typeof detail === 'string'
-        ? detail
-        : 'Publication verification failed. Please check the link and try again.'
-    )
-  } finally {
-    setVerificationLoading(false)
   }
-}
+
   const verifyConferencePublication = async (index: number) => {
     const url = form
       .getValues(`modules.conference_articles.entries.${index}.proof_file`)
@@ -368,6 +374,7 @@ const verifyJournalPublication = async () => {
     } catch (err: any) {
       console.error('Conference publication verification failed:', err)
       const detail = err?.response?.data?.detail
+
       setConferenceVerificationError((prev) => ({
         ...prev,
         [index]:
@@ -419,6 +426,7 @@ const verifyJournalPublication = async () => {
     } catch (err: any) {
       console.error('Book chapter publication verification failed:', err)
       const detail = err?.response?.data?.detail
+
       setBookChapterVerificationError((prev) => ({
         ...prev,
         [index]:
@@ -436,10 +444,12 @@ const verifyJournalPublication = async () => {
 
   const submitEval = async () => {
     const data = form.getValues()
+
     if (computed.total <= 0) {
       alert('Grand total must be greater than 0 with required proofs (Scopus links or uploaded files) before submission.')
       return
     }
+
     try {
       const saved = await persistDraft(data)
       await api.post(`/evaluations/${saved.id}/submit`)
@@ -452,15 +462,19 @@ const verifyJournalPublication = async () => {
   }
 
   return (
-    <div >
+    <div>
       <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Evaluation Form</h1>
-      <p className="form-label" style={{ marginBottom: '1.5rem' }}>Academic year: {form.watch('academic_year')}</p>
+
+      <p className="form-label" style={{ marginBottom: '1.5rem' }}>
+        Academic year: {form.watch('academic_year')}
+      </p>
 
       <form onSubmit={form.handleSubmit(onSubmit)}>
         <div style={{ marginBottom: '1.5rem' }}>
           <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>
             Faculty Position
           </label>
+
           <select {...form.register('faculty_position')} className="input">
             <option value="assistant_professor">Assistant Professor</option>
             <option value="associate_professor">Associate Professor</option>
@@ -475,6 +489,7 @@ const verifyJournalPublication = async () => {
             {facultyPosition === 'associate_professor' && '≥85% → 15 pts, 70–84% → 10, 60–69% → 7, <60% → 5'}
             {facultyPosition === 'professor' && '≥85% → 10 pts, 70–84% → 8, 60–69% → 5, <60% → 3'}
           </p>
+
           <select {...form.register('modules.student_feedback.percentage')} className="input input-w-40">
             <option value="">Select %</option>
             {['90', '85', '80', '75', '70', '65', '60', '55', '50'].map((p) => (
@@ -486,261 +501,317 @@ const verifyJournalPublication = async () => {
         {/* Module 2: Journal Index (Scopus required when filled) */}
         <ModuleCard title="2. Journal Index" points={computed.journal_index} defaultOpen>
 
-<div className="form-row">
+          <div className="form-row">
 
-  <input
-    type="text"
-    placeholder="Journal Title"
-    {...form.register('modules.journal_index.title')}
-    className="input input-flex"
-  />
+            <input
+              type="text"
+              placeholder="Journal Title"
+              {...form.register('modules.journal_index.title')}
+              className="input input-flex"
+            />
 
-  <ProofUpload
-    value={form.watch('modules.journal_index.scopus_link')}
-    onChange={(url) => {
-      form.setValue(
-        'modules.journal_index.scopus_link',
-        url
-      )
+            <ProofUpload
+              value={form.watch('modules.journal_index.scopus_link')}
+              onChange={(url) => {
+                form.setValue(
+                  'modules.journal_index.scopus_link',
+                  url
+                )
 
-      form.setValue(
-        'modules.journal_index.verification',
-        undefined
-      )
+                form.setValue(
+                  'modules.journal_index.verification',
+                  undefined
+                )
 
-      setVerificationError('')
-    }}
-    prefix="journal_index"
-    mode="scopus"
-  />
+                setVerificationError('')
+              }}
+              prefix="journal_index"
+              mode="scopus"
+            />
 
-<button
-    type="button"
-    onClick={verifyJournalPublication}
-    disabled={
-      verificationLoading ||
-      !form.watch('modules.journal_index.scopus_link')
-    }
-    className="btn btn-secondary"
-  >
-    {verificationLoading ? 'Verifying...' : 'Verify'}
-  </button>
+            <button
+              type="button"
+              onClick={verifyJournalPublication}
+              disabled={
+                verificationLoading ||
+                !form.watch('modules.journal_index.scopus_link')
+              }
+              className="btn btn-secondary"
+            >
+              {verificationLoading ? 'Verifying...' : 'Verify'}
+            </button>
 
-  <button
-    type="button"
-    onClick={() => {
-      form.setValue('modules.journal_index.title', '')
-      form.setValue('modules.journal_index.scopus_link', '')
-      form.setValue('modules.journal_index.value', '')
-      form.setValue('modules.journal_index.verification', undefined)
-      setVerificationError('')
-    }}
-    className="remove-link"
-  >
-    Remove
-  </button>
+            <button
+              type="button"
+              onClick={() => {
+                form.setValue('modules.journal_index.title', '')
+                form.setValue('modules.journal_index.scopus_link', '')
+                form.setValue('modules.journal_index.value', '')
+                form.setValue('modules.journal_index.verification', undefined)
+                setVerificationError('')
+              }}
+              className="remove-link"
+            >
+              Remove
+            </button>
 
-</div>
+          </div>
 
-{verificationError && (
-  <div
-    style={{
-      marginTop: '0.75rem',
-      color: '#dc2626',
-    }}
-  >
-    {verificationError}
-  </div>
-)}
+          {verificationError && (
+            <div
+              style={{
+                marginTop: '0.75rem',
+                color: '#dc2626',
+              }}
+            >
+              {verificationError}
+            </div>
+          )}
 
-{form.watch('modules.journal_index.verification') && (
-  <div
-    style={{
-      marginTop: '1rem',
-      padding: '1rem',
-      border: '1px solid #d1d5db',
-      borderRadius: '8px',
-    }}
-  >
+          {form.watch('modules.journal_index.verification') && (
+            <div
+              style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+              }}
+            >
 
-    <h4 style={{ marginTop: 0 }}>
-      Publication Verification
-    </h4>
+              <div className="publication-verification-header">
+                <div>
+                  <div className="publication-verification-title">
+                    Publication Verification
+                  </div>
 
-    {form.watch('modules.journal_index.verification')
-      ?.publication_found ? (
-      <p>
-        <strong>Crossref:</strong> Publication found
-      </p>
-    ) : (
-      <p>
-        <strong>Crossref:</strong> Publication not found
-      </p>
-    )}
+                  <div className="publication-verification-subtitle">
+                    Verification results from trusted publication databases
+                  </div>
+                </div>
 
-    {form.watch('modules.journal_index.verification')?.title && (
-      <p>
-        <strong>Title:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.title}
-      </p>
-    )}
+                <span
+                  className={`verification-badge ${
+                    form.watch('modules.journal_index.verification')?.publication_found &&
+                    form.watch('modules.journal_index.verification')?.scopus_status ===
+                      'source_covered'
+                      ? 'verification-badge-success'
+                      : 'verification-badge-warning'
+                  }`}
+                >
+                  {form.watch('modules.journal_index.verification')?.publication_found &&
+                  form.watch('modules.journal_index.verification')?.scopus_status ===
+                    'source_covered'
+                    ? 'Verified'
+                    : 'Review Required'}
+                </span>
+              </div>
 
-    {form.watch('modules.journal_index.verification')?.journal && (
-      <p>
-        <strong>Journal:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.journal}
-      </p>
-    )}
+              <div className="verification-section">
+                <div className="verification-section-title">
+                  Publication Details
+                </div>
 
-    {form.watch('modules.journal_index.verification')?.doi && (
-      <p>
-        <strong>DOI:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.doi}
-      </p>
-    )}
+                <div className="publication-details">
+                  {form.watch('modules.journal_index.verification')?.title && (
+                    <div className="publication-detail publication-detail-full">
+                      <span className="publication-detail-label">Title</span>
 
-    {form.watch('modules.journal_index.verification')?.issn && (
-      <p>
-        <strong>ISSN:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.issn}
-      </p>
-    )}
+                      <span className="publication-detail-value publication-title">
+                        {form.watch('modules.journal_index.verification')?.title}
+                      </span>
+                    </div>
+                  )}
 
-    {form.watch('modules.journal_index.verification')
-      ?.publisher && (
-      <p>
-        <strong>Publisher:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.publisher}
-      </p>
-    )}
+                  {form.watch('modules.journal_index.verification')?.journal && (
+                    <div className="publication-detail">
+                      <span className="publication-detail-label">Journal</span>
 
-    <hr />
+                      <span className="publication-detail-value">
+                        {form.watch('modules.journal_index.verification')?.journal}
+                      </span>
+                    </div>
+                  )}
 
-    <p>
-      <strong>Author Match:</strong>{' '}
-      {form.watch('modules.journal_index.verification')
-        ?.author_match
-        ? 'Yes'
-        : 'No'}
-    </p>
+                  {form.watch('modules.journal_index.verification')?.doi && (
+                    <div className="publication-detail">
+                      <span className="publication-detail-label">DOI</span>
 
-    {form.watch('modules.journal_index.verification')
-      ?.matched_author && (
-      <p>
-        <strong>Matched Author:</strong>{' '}
-        {form.watch('modules.journal_index.verification')
-          ?.matched_author}
-      </p>
-    )}
+                      <span className="publication-detail-value publication-doi">
+                        {form.watch('modules.journal_index.verification')?.doi}
+                      </span>
+                    </div>
+                  )}
 
-    <hr />
+                  {form.watch('modules.journal_index.verification')?.publisher && (
+                    <div className="publication-detail publication-detail-full">
+                      <span className="publication-detail-label">Publisher</span>
 
-    <p>
-      <strong>Scopus Status:</strong>{' '}
-      {form.watch('modules.journal_index.verification')
-        ?.scopus_status || 'Not available'}
-    </p>
+                      <span className="publication-detail-value">
+                        {form.watch('modules.journal_index.verification')?.publisher}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-    {form.watch('modules.journal_index.verification')
-      ?.scopus_source && (
-      <>
-        <p>
-          <strong>Source:</strong>{' '}
-          {form.watch('modules.journal_index.verification')
-            ?.scopus_source?.source_title || 'Not available'}
-        </p>
+              <div className="verification-section verification-checks-section">
+                <div className="verification-section-title">
+                  Verification Checks
+                </div>
 
-        <p>
-          <strong>Coverage:</strong>{' '}
-          {form.watch('modules.journal_index.verification')
-            ?.scopus_source?.coverage || 'Not available'}
-        </p>
+                <div className="verification-checks">
+                  <div className="verification-check">
+                    <div className="verification-check-name">Crossref</div>
 
-        <p>
-          <strong>Active:</strong>{' '}
-          {form.watch('modules.journal_index.verification')
-            ?.scopus_source?.active === undefined
-            ? 'Not available'
-            : form.watch('modules.journal_index.verification')
-                ?.scopus_source?.active
-              ? 'Yes'
-              : 'No'}
-        </p>
+                    <span
+                      className={`verification-status ${
+                        form.watch('modules.journal_index.verification')?.publication_found
+                          ? 'verification-status-success'
+                          : 'verification-status-error'
+                      }`}
+                    >
+                      {form.watch('modules.journal_index.verification')?.publication_found
+                        ? '✓ Publication found'
+                        : '✕ Publication not found'}
+                    </span>
+                  </div>
 
-        <p>
-          <strong>Source Type:</strong>{' '}
-          {form.watch('modules.journal_index.verification')
-            ?.scopus_source?.source_type || 'Not available'}
-        </p>
+                  <div className="verification-check">
+                    <div className="verification-check-name">Scopus</div>
 
-        <p>
-          <strong>Matched By:</strong>{' '}
-          {form.watch('modules.journal_index.verification')
-            ?.scopus_source?.matched_by || 'Not available'}
-        </p>
-        <hr />
+                    <span
+                      className={`verification-status ${
+                        form.watch('modules.journal_index.verification')?.scopus_status ===
+                        'source_covered'
+                          ? 'verification-status-success'
+                          : 'verification-status-error'
+                      }`}
+                    >
+                      {form.watch('modules.journal_index.verification')?.scopus_status ===
+                      'source_covered'
+                        ? '✓ Source covered'
+                        : '✕ Source not covered'}
+                    </span>
+                  </div>
 
-        <hr />
+                  <div className="verification-check">
+                    <div className="verification-check-name">Web of Science</div>
 
-        <p>
-          <strong>Web of Science Status:</strong>{' '}
-          {form.watch('modules.journal_index.verification')?.web_of_science?.status || 'Not available'}
-        </p>
+                    <span
+                      className={`verification-status ${
+                        form.watch('modules.journal_index.verification')?.web_of_science
+                          ?.status === 'indexed'
+                          ? 'verification-status-success'
+                          : 'verification-status-error'
+                      }`}
+                    >
+                      {form.watch('modules.journal_index.verification')?.web_of_science
+                        ?.status === 'indexed'
+                        ? '✓ Indexed'
+                        : '✕ Not indexed'}
+                    </span>
+                  </div>
 
-        <p>
-          <strong>Source:</strong>{' '}
-         {form.watch('modules.journal_index.verification')?.web_of_science?.source || 'Not available'}
-        </p>
+                  <div className="verification-check">
+                    <div className="verification-check-name">Author Match</div>
 
-        <p>
-          <strong>Records Found:</strong>{' '}
-         {form.watch('modules.journal_index.verification')?.web_of_science?.records_found ?? 'Not available'}
-        </p>
-      </>
-    )}
+                    <span
+                      className={`verification-status ${
+                        form.watch('modules.journal_index.verification')?.author_match
+                          ? 'verification-status-success'
+                          : 'verification-status-error'
+                      }`}
+                    >
+                      {form.watch('modules.journal_index.verification')?.author_match
+                        ? '✓ Match found'
+                        : '✕ No match'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-    {form.watch('modules.journal_index.verification')?.error && (
-      <p>
-        <strong>Message:</strong>{' '}
-        {form.watch('modules.journal_index.verification')?.error}
-      </p>
-    )}
+              {form.watch('modules.journal_index.verification')?.scopus_source && (
+                <div className="verification-section verification-source-section">
+                  <div className="verification-section-title">
+                    Scopus Source
+                  </div>
 
-  </div>
-)}
+                  <div className="scopus-source-header">
+                    <div>
+                      <div className="scopus-source-name">
+                        {form.watch('modules.journal_index.verification')?.scopus_source
+                          ?.source_title || 'Not available'}
+                      </div>
 
-<input
-  type="text"
-  placeholder="Journal Index (optional text)"
-  {...form.register('modules.journal_index.value')}
-  className="input"
-  style={{
-    width: '100%',
-    marginTop: '0.75rem',
-  }}
-/>
+                      <div className="scopus-source-type">
+                        {form.watch('modules.journal_index.verification')?.scopus_source
+                          ?.source_type || 'Source'}
+                      </div>
+                    </div>
 
-</ModuleCard>
+                    <span
+                      className={`source-active-badge ${
+                        form.watch('modules.journal_index.verification')?.scopus_source
+                          ?.active
+                          ? 'source-active'
+                          : 'source-inactive'
+                      }`}
+                    >
+                      {form.watch('modules.journal_index.verification')?.scopus_source
+                        ?.active
+                        ? 'Active'
+                        : 'Inactive'}
+                    </span>
+                  </div>
+
+                  <div className="scopus-source-details">
+                    <div>
+                      <span>Coverage</span>
+
+                      <strong>
+                        {form.watch('modules.journal_index.verification')?.scopus_source
+                          ?.coverage || 'Not available'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          <input
+            type="text"
+            placeholder="Journal Index (optional text)"
+            {...form.register('modules.journal_index.value')}
+            className="input"
+            style={{
+              width: '100%',
+              marginTop: '0.75rem',
+            }}
+          />
+
+        </ModuleCard>
 
         {/* Module 3: Conference Articles - max 4, 4 pts each */}
         <ConferenceArticlesModule
-  form={form}
-  points={computed.conference_articles}
-  verifyPublication={verifyConferencePublication}
-  verificationLoading={conferenceVerificationLoading}
-  verificationError={conferenceVerificationError}
-  setVerificationError={setConferenceVerificationError}
-/>
+          form={form}
+          points={computed.conference_articles}
+          verifyPublication={verifyConferencePublication}
+          verificationLoading={conferenceVerificationLoading}
+          verificationError={conferenceVerificationError}
+          setVerificationError={setConferenceVerificationError}
+        />
 
         {/* Module 4: Book Chapters - max 4, 6 pts each */}
         <BookChaptersModule
-  form={form}
-  points={computed.book_chapters}
-  verifyPublication={verifyBookChapterPublication}
-  verificationLoading={bookChapterVerificationLoading}
-  verificationError={bookChapterVerificationError}
-  setVerificationError={setBookChapterVerificationError}
-/>
+          form={form}
+          points={computed.book_chapters}
+          verifyPublication={verifyBookChapterPublication}
+          verificationLoading={bookChapterVerificationLoading}
+          verificationError={bookChapterVerificationError}
+          setVerificationError={setBookChapterVerificationError}
+        />
 
         {/* Module 5: Books - max 3, authored 20 / edited 10 */}
         <BooksModule form={form} points={computed.books} />
@@ -771,11 +842,23 @@ const verifyJournalPublication = async () => {
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary">Save Draft</button>
+          <button type="submit" className="btn btn-primary">
+            Save Draft
+          </button>
+
           {user?.role === 'faculty' && form.watch('status') === 'draft' && (
-            <button type="button" onClick={submitEval} className="btn btn-secondary">Submit</button>
+            <button type="button" onClick={submitEval} className="btn btn-secondary">
+              Submit
+            </button>
           )}
-          <button type="button" onClick={() => navigate('/dashboard')} className="btn btn-outline">Cancel</button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard')}
+            className="btn btn-outline"
+          >
+            Cancel
+          </button>
         </div>
       </form>
     </div>
@@ -1024,182 +1107,570 @@ function BookChaptersModule({
   )
 }
 
-function BooksModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.books.entries' })
+function BooksModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.books.entries'
+  })
+
   return (
-    <ModuleCard title="5. Authored / Edited Books (max 3, Authored 20 / Edited 10 pts)" points={points} defaultOpen>
+    <ModuleCard
+      title="5. Authored / Edited Books (max 3, Authored 20 / Edited 10 pts)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Title" {...form.register(`modules.books.entries.${i}.title`)} className="input input-flex" />
-          <select {...form.register(`modules.books.entries.${i}.type`)} className="input input-w-32">
+          <input
+            placeholder="Title"
+            {...form.register(`modules.books.entries.${i}.title`)}
+            className="input input-flex"
+          />
+
+          <select
+            {...form.register(`modules.books.entries.${i}.type`)}
+            className="input input-w-32"
+          >
             <option value="authored">Authored</option>
             <option value="edited">Edited</option>
           </select>
+
           <ProofUpload
             value={form.watch(`modules.books.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.books.entries.${i}.proof_file`, url)}
+            onChange={(url) =>
+              form.setValue(
+                `modules.books.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="books"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 3 && <button type="button" onClick={() => append({ title: '', type: 'authored' })} className="add-link">+ Add</button>}
+
+      {fields.length < 3 && (
+        <button
+          type="button"
+          onClick={() => append({ title: '', type: 'authored' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function IPRModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.ipr.entries' })
+function IPRModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.ipr.entries'
+  })
+
   return (
-    <ModuleCard title="6. IPR (Patent 30, Copyright 10, Trademark 10 pts)" points={points} defaultOpen>
+    <ModuleCard
+      title="6. IPR (Patent 30, Copyright 10, Trademark 10 pts)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <select {...form.register(`modules.ipr.entries.${i}.type`)} className="input input-w-32">
+          <select
+            {...form.register(`modules.ipr.entries.${i}.type`)}
+            className="input input-w-32"
+          >
             <option value="patent">Patent</option>
             <option value="copyright">Copyright</option>
             <option value="trademark">Trademark</option>
           </select>
-          <input placeholder="Description" {...form.register(`modules.ipr.entries.${i}.description`)} className="input input-flex" />
+
+          <input
+            placeholder="Description"
+            {...form.register(`modules.ipr.entries.${i}.description`)}
+            className="input input-flex"
+          />
+
           <ProofUpload
             value={form.watch(`modules.ipr.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.ipr.entries.${i}.proof_file`, url)}
+            onChange={(url) =>
+              form.setValue(
+                `modules.ipr.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="ipr"
             mode="file"
           />
-          <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
         </div>
       ))}
-      <button type="button" onClick={() => append({ type: 'patent', description: '' })} className="add-link">+ Add</button>
+
+      <button
+        type="button"
+        onClick={() => append({ type: 'patent', description: '' })}
+        className="add-link"
+      >
+        + Add
+      </button>
     </ModuleCard>
   )
 }
 
-function FundedProjectsModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.funded_projects.entries' })
+function FundedProjectsModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.funded_projects.entries'
+  })
+
   return (
-    <ModuleCard title="7. Funded Projects / Consultancy (Lakhs: >1→5, 1-2→10, 2-3→12, 3-5→15, >5→20)" points={points} defaultOpen>
+    <ModuleCard
+      title="7. Funded Projects / Consultancy (Lakhs: >1→5, 1-2→10, 2-3→12, 3-5→15, >5→20)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input type="number" step="0.1" placeholder="Amount (L)" {...form.register(`modules.funded_projects.entries.${i}.amount_lakhs`, { valueAsNumber: true })} className="input input-w-24" />
-          <input placeholder="Description" {...form.register(`modules.funded_projects.entries.${i}.description`)} className="input input-flex" />
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Amount (L)"
+            {...form.register(
+              `modules.funded_projects.entries.${i}.amount_lakhs`,
+              { valueAsNumber: true }
+            )}
+            className="input input-w-24"
+          />
+
+          <input
+            placeholder="Description"
+            {...form.register(
+              `modules.funded_projects.entries.${i}.description`
+            )}
+            className="input input-flex"
+          />
+
           <ProofUpload
             value={form.watch(`modules.funded_projects.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.funded_projects.entries.${i}.proof_file`, url)}
+            onChange={(url) =>
+              form.setValue(
+                `modules.funded_projects.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="funded_projects"
             mode="file"
           />
-          <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
         </div>
       ))}
-      <button type="button" onClick={() => append({ amount_lakhs: 0, description: '' })} className="add-link">+ Add</button>
+
+      <button
+        type="button"
+        onClick={() =>
+          append({ amount_lakhs: 0, description: '' })
+        }
+        className="add-link"
+      >
+        + Add
+      </button>
     </ModuleCard>
   )
 }
 
-function FDPAttendedModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.fdp_attended.entries' })
+function FDPAttendedModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.fdp_attended.entries'
+  })
+
   return (
-    <ModuleCard title="8. FDP / Workshops Attended (max 2; 3d→3, 5d→5, 2w→10 pts)" points={points} defaultOpen>
+    <ModuleCard
+      title="8. FDP / Workshops Attended (max 2; 3d→3, 5d→5, 2w→10 pts)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Name" {...form.register(`modules.fdp_attended.entries.${i}.name`)} className="input input-w-48" />
-          <input type="number" placeholder="Days" {...form.register(`modules.fdp_attended.entries.${i}.days`, { valueAsNumber: true })} className="input input-w-20" />
+          <input
+            placeholder="Name"
+            {...form.register(
+              `modules.fdp_attended.entries.${i}.name`
+            )}
+            className="input input-w-48"
+          />
+
+          <input
+            type="number"
+            placeholder="Days"
+            {...form.register(
+              `modules.fdp_attended.entries.${i}.days`,
+              { valueAsNumber: true }
+            )}
+            className="input input-w-20"
+          />
+
           <ProofUpload
-            value={form.watch(`modules.fdp_attended.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.fdp_attended.entries.${i}.proof_file`, url)}
+            value={form.watch(
+              `modules.fdp_attended.entries.${i}.proof_file`
+            )}
+            onChange={(url) =>
+              form.setValue(
+                `modules.fdp_attended.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="fdp_attended"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 2 && <button type="button" onClick={() => append({ name: '', days: 0 })} className="add-link">+ Add</button>}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ name: '', days: 0 })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function TalksModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.talks_delivered.entries' })
+function TalksModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.talks_delivered.entries'
+  })
+
   return (
-    <ModuleCard title="9. Talks Delivered (max 2, 5 pts each)" points={points} defaultOpen>
+    <ModuleCard
+      title="9. Talks Delivered (max 2, 5 pts each)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Title" {...form.register(`modules.talks_delivered.entries.${i}.title`)} className="input input-flex" />
+          <input
+            placeholder="Title"
+            {...form.register(
+              `modules.talks_delivered.entries.${i}.title`
+            )}
+            className="input input-flex"
+          />
+
           <ProofUpload
-            value={form.watch(`modules.talks_delivered.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.talks_delivered.entries.${i}.proof_file`, url)}
+            value={form.watch(
+              `modules.talks_delivered.entries.${i}.proof_file`
+            )}
+            onChange={(url) =>
+              form.setValue(
+                `modules.talks_delivered.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="talks_delivered"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 2 && <button type="button" onClick={() => append({ title: '' })} className="add-link">+ Add</button>}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ title: '' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function DeptActivitiesModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.departmental_activities.entries' })
+function DeptActivitiesModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.departmental_activities.entries'
+  })
+
   return (
-    <ModuleCard title="10. Departmental Activities (max 3, 3 pts each)" points={points} defaultOpen>
+    <ModuleCard
+      title="10. Departmental Activities (max 3, 3 pts each)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Description" {...form.register(`modules.departmental_activities.entries.${i}.description`)} className="input input-flex" />
+          <input
+            placeholder="Description"
+            {...form.register(
+              `modules.departmental_activities.entries.${i}.description`
+            )}
+            className="input input-flex"
+          />
+
           <ProofUpload
-            value={form.watch(`modules.departmental_activities.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.departmental_activities.entries.${i}.proof_file`, url)}
+            value={form.watch(
+              `modules.departmental_activities.entries.${i}.proof_file`
+            )}
+            onChange={(url) =>
+              form.setValue(
+                `modules.departmental_activities.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="departmental_activities"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 3 && <button type="button" onClick={() => append({ description: '' })} className="add-link">+ Add</button>}
+
+      {fields.length < 3 && (
+        <button
+          type="button"
+          onClick={() => append({ description: '' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function InstActivitiesModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.institutional_activities.entries' })
+function InstActivitiesModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.institutional_activities.entries'
+  })
+
   return (
-    <ModuleCard title="11. Institutional Activities (max 3, 5 pts each)" points={points} defaultOpen>
+    <ModuleCard
+      title="11. Institutional Activities (max 3, 5 pts each)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Description" {...form.register(`modules.institutional_activities.entries.${i}.description`)} className="input input-flex" />
+          <input
+            placeholder="Description"
+            {...form.register(
+              `modules.institutional_activities.entries.${i}.description`
+            )}
+            className="input input-flex"
+          />
+
           <ProofUpload
-            value={form.watch(`modules.institutional_activities.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.institutional_activities.entries.${i}.proof_file`, url)}
+            value={form.watch(
+              `modules.institutional_activities.entries.${i}.proof_file`
+            )}
+            onChange={(url) =>
+              form.setValue(
+                `modules.institutional_activities.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="institutional_activities"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 3 && <button type="button" onClick={() => append({ description: '' })} className="add-link">+ Add</button>}
+
+      {fields.length < 3 && (
+        <button
+          type="button"
+          onClick={() => append({ description: '' })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
 
-function FDPOrganizedModule({ form, points }: { form: ReturnType<typeof useForm<FormValues>>; points: number }) {
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'modules.fdp_organized.entries' })
+function FDPOrganizedModule({
+  form,
+  points
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.fdp_organized.entries'
+  })
+
   return (
-    <ModuleCard title="12. FDP / Workshops / Conferences Organized (max 2; 1d→2, 3d→5, 5d→10 pts)" points={points} defaultOpen>
+    <ModuleCard
+      title="12. FDP / Workshops / Conferences Organized (max 2; 1d→2, 3d→5, 5d→10 pts)"
+      points={points}
+      defaultOpen
+    >
       {fields.map((_, i) => (
         <div key={i} className="form-row">
-          <input placeholder="Name" {...form.register(`modules.fdp_organized.entries.${i}.name`)} className="input input-w-48" />
-          <input type="number" placeholder="Days" {...form.register(`modules.fdp_organized.entries.${i}.days`, { valueAsNumber: true })} className="input input-w-20" />
+          <input
+            placeholder="Name"
+            {...form.register(
+              `modules.fdp_organized.entries.${i}.name`
+            )}
+            className="input input-w-48"
+          />
+
+          <input
+            type="number"
+            placeholder="Days"
+            {...form.register(
+              `modules.fdp_organized.entries.${i}.days`,
+              { valueAsNumber: true }
+            )}
+            className="input input-w-20"
+          />
+
           <ProofUpload
-            value={form.watch(`modules.fdp_organized.entries.${i}.proof_file`)}
-            onChange={(url) => form.setValue(`modules.fdp_organized.entries.${i}.proof_file`, url)}
+            value={form.watch(
+              `modules.fdp_organized.entries.${i}.proof_file`
+            )}
+            onChange={(url) =>
+              form.setValue(
+                `modules.fdp_organized.entries.${i}.proof_file`,
+                url
+              )
+            }
             prefix="fdp_organized"
             mode="file"
           />
-          {fields.length > 0 && <button type="button" onClick={() => remove(i)} className="remove-link">Remove</button>}
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="remove-link"
+            >
+              Remove
+            </button>
+          )}
         </div>
       ))}
-      {fields.length < 2 && <button type="button" onClick={() => append({ name: '', days: 0 })} className="add-link">+ Add</button>}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ name: '', days: 0 })}
+          className="add-link"
+        >
+          + Add
+        </button>
+      )}
     </ModuleCard>
   )
 }
@@ -1209,126 +1680,219 @@ function PublicationVerificationResult({
 }: {
   verification: any
 }) {
+  const crossrefFound = !!verification?.publication_found
+  const scopusIndexed =
+    verification?.scopus_status === 'source_covered' ||
+    !!verification?.scopus_eid
+
+  const wosIndexed =
+    verification?.web_of_science?.status === 'indexed'
+
+  const authorMatched = !!verification?.author_match
+
+  const isVerified = crossrefFound && scopusIndexed
+
   return (
-    <div
-      style={{
-        marginTop: '1rem',
-        padding: '1rem',
-        border: '1px solid #d1d5db',
-        borderRadius: '8px',
-      }}
-    >
-      <h4 style={{ marginTop: 0 }}>
-        Publication Verification
-      </h4>
+    <div className="publication-verification">
+      {/* Header */}
+      <div className="publication-verification-header">
+        <div>
+          <h3>Publication Verification</h3>
+          <p>Verification results from trusted publication databases</p>
+        </div>
 
-      {verification?.publication_found ? (
-        <p>
-          <strong>Crossref:</strong> Publication found
-        </p>
-      ) : (
-        <p>
-          <strong>Crossref:</strong> Publication not found
-        </p>
+        <span
+          className={
+            isVerified
+              ? 'verification-badge verification-badge-success'
+              : 'verification-badge verification-badge-warning'
+          }
+        >
+          {isVerified ? 'Verified' : 'Review Required'}
+        </span>
+      </div>
+
+      {/* Publication Details */}
+      <div className="verification-section">
+        <div className="verification-section-title">
+          Publication Details
+        </div>
+
+        <div className="verification-details">
+          {verification?.title && (
+            <div className="verification-detail">
+              <span className="verification-detail-label">Title</span>
+              <span className="verification-detail-value">
+                {verification.title}
+              </span>
+            </div>
+          )}
+
+          {verification?.journal && (
+            <div className="verification-detail">
+              <span className="verification-detail-label">
+                Journal / Source
+              </span>
+              <span className="verification-detail-value">
+                {verification.journal}
+              </span>
+            </div>
+          )}
+
+          {verification?.doi && (
+            <div className="verification-detail">
+              <span className="verification-detail-label">DOI</span>
+              <span className="verification-detail-value">
+                {verification.doi}
+              </span>
+            </div>
+          )}
+
+          {verification?.publisher && (
+            <div className="verification-detail">
+              <span className="verification-detail-label">
+                Publisher
+              </span>
+              <span className="verification-detail-value">
+                {verification.publisher}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Verification Checks */}
+      <div className="verification-section verification-checks-section">
+        <div className="verification-section-title">
+          Verification Checks
+        </div>
+
+        <div className="verification-checks">
+          <div
+            className={`verification-check ${
+              crossrefFound ? '' : 'verification-check-failed'
+            }`}
+          >
+            <span className="verification-check-name">
+              Crossref
+            </span>
+
+            <span
+              className={
+                crossrefFound
+                  ? 'verification-status verification-status-success'
+                  : 'verification-status verification-status-error'
+              }
+            >
+              {crossrefFound
+                ? '✓ Publication found'
+                : '✕ Not found'}
+            </span>
+          </div>
+
+          <div
+            className={`verification-check ${
+              scopusIndexed ? '' : 'verification-check-failed'
+            }`}
+          >
+            <span className="verification-check-name">
+              Scopus
+            </span>
+
+            <span
+              className={
+                scopusIndexed
+                  ? 'verification-status verification-status-success'
+                  : 'verification-status verification-status-error'
+              }
+            >
+              {scopusIndexed ? '✓ Indexed' : '— Not available'}
+            </span>
+          </div>
+
+          <div
+            className={`verification-check ${
+              wosIndexed ? '' : 'verification-check-failed'
+            }`}
+          >
+            <span className="verification-check-name">
+              Web of Science
+            </span>
+
+            <span
+              className={
+                wosIndexed
+                  ? 'verification-status verification-status-success'
+                  : 'verification-status verification-status-error'
+              }
+            >
+              {wosIndexed ? '✓ Indexed' : '— Not available'}
+            </span>
+          </div>
+
+          <div
+            className={`verification-check ${
+              authorMatched ? '' : 'verification-check-failed'
+            }`}
+          >
+            <span className="verification-check-name">
+              Author Match
+            </span>
+
+            <span
+              className={
+                authorMatched
+                  ? 'verification-status verification-status-success'
+                  : 'verification-status verification-status-error'
+              }
+            >
+              {authorMatched ? '✓ Match found' : '✕ No match'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Scopus Record */}
+      {verification?.scopus_eid && (
+        <div className="verification-section">
+          <div className="verification-section-title">
+            Scopus Record
+          </div>
+
+          <div className="verification-details">
+            <div className="verification-detail">
+              <span className="verification-detail-label">
+                Scopus EID
+              </span>
+              <span className="verification-detail-value">
+                {verification.scopus_eid}
+              </span>
+            </div>
+
+            {verification?.scopus_source?.source_title && (
+              <div className="verification-detail">
+                <span className="verification-detail-label">
+                  Source
+                </span>
+                <span className="verification-detail-value">
+                  {verification.scopus_source.source_title}
+                </span>
+              </div>
+            )}
+
+            {verification?.scopus_source?.source_type && (
+              <div className="verification-detail">
+                <span className="verification-detail-label">
+                  Document Type
+                </span>
+                <span className="verification-detail-value">
+                  {verification.scopus_source.source_type}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
-
-      {verification?.title && (
-        <p>
-          <strong>Title:</strong> {verification.title}
-        </p>
-      )}
-
-      {verification?.journal && (
-        <p>
-          <strong>Journal:</strong> {verification.journal}
-        </p>
-      )}
-
-      {verification?.doi && (
-        <p>
-          <strong>DOI:</strong> {verification.doi}
-        </p>
-      )}
-
-      {verification?.issn && (
-        <p>
-          <strong>ISSN:</strong> {verification.issn}
-        </p>
-      )}
-
-      {verification?.publisher && (
-        <p>
-          <strong>Publisher:</strong> {verification.publisher}
-        </p>
-      )}
-
-      <hr />
-
-      <p>
-        <strong>Author Match:</strong>{' '}
-        {verification?.author_match ? 'Yes' : 'No'}
-      </p>
-
-      {verification?.matched_author && (
-        <p>
-          <strong>Matched Author:</strong>{' '}
-          {verification.matched_author}
-        </p>
-      )}
-
-      <hr />
-
-      <p>
-        <strong>Scopus Status:</strong>{' '}
-        {verification?.scopus_status || 'Not available'}
-      </p>
-
-      {verification?.scopus_source && (
-        <>
-          <p>
-            <strong>Source:</strong>{' '}
-            {verification.scopus_source.source_title ||
-              'Not available'}
-          </p>
-
-          <p>
-            <strong>Coverage:</strong>{' '}
-            {verification.scopus_source.coverage ||
-              'Not available'}
-          </p>
-
-          <p>
-            <strong>Active:</strong>{' '}
-            {verification.scopus_source.active || 'Not available'}
-          </p>
-
-          <p>
-            <strong>Source Type:</strong>{' '}
-            {verification.scopus_source.source_type ||
-              'Not available'}
-          </p>
-        </>
-      )}
-      <hr />
-
-      <p>
-         <strong>Web of Science Status:</strong>{' '}
-        {verification?.web_of_science?.status || 'Not available'}
-      </p>
-
-      {verification?.web_of_science && (
-        <>
-          <p>
-            <strong>Source:</strong>{' '}
-            {verification.web_of_science.source || 'Not available'}
-          </p>
-
-          <p>
-            <strong>Records Found:</strong>{' '}
-            {verification.web_of_science.records_found ?? 'Not available'}
-       </p>
-  </>
-)}
     </div>
   )
 }

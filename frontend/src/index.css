@@ -698,3 +698,354 @@ td {
   color: var(--primary);
   margin: 0;
 }
+
+/* Publication verification */
+.publication-verification {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--white);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.publication-verification-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border);
+}
+
+.publication-verification-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.publication-verification-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.verification-badge {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.verification-badge-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.verification-badge-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.verification-section {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.verification-section:last-child {
+  border-bottom: 0;
+}
+
+.verification-section-title {
+  margin-bottom: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.publication-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+.publication-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.publication-detail-full {
+  grid-column: 1 / -1;
+}
+
+.publication-detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.publication-detail-value {
+  font-size: 0.9rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.publication-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.publication-doi {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--secondary);
+}
+
+.verification-checks {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.verification-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.verification-check-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.verification-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.verification-status-success {
+  color: #15803d;
+}
+
+.verification-status-error {
+  color: #dc2626;
+}
+
+.verification-source-section {
+  background: #fafcff;
+}
+
+.scopus-source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.scopus-source-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.scopus-source-type {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.source-active-badge {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.source-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.source-inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.scopus-source-details {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.scopus-source-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.scopus-source-details span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.scopus-source-details strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+@media (max-width: 700px) {
+  .publication-details,
+  .verification-checks {
+    grid-template-columns: 1fr;
+  }
+
+  .publication-detail-full {
+    grid-column: auto;
+  }
+
+  .publication-verification-header {
+    flex-direction: column;
+  }
+
+  .verification-check {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* Highlight verification summary */
+.verification-checks-section {
+  background: #f8fafc;
+  border-top: 2px solid #dbeafe;
+}
+
+.verification-checks-section .verification-section-title {
+  font-size: 0.95rem;
+  color: #1e3a8a;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.verification-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.verification-check {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #22c55e;
+  border-radius: 0.65rem;
+  background: #f0fdf4;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04);
+}
+
+.verification-check-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.verification-status {
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.verification-status-success {
+  color: #15803d;
+}
+
+.verification-status-error {
+  color: #dc2626;
+}
+
+/* Make failed verification visually distinct */
+.verification-check:has(.verification-status-error) {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #ef4444;
+}
+
+.verification-check:has(.verification-status-error) .verification-check-name {
+  color: #991b1b;
+}
+
+.verification-check:has(.verification-status-error) .verification-status-error {
+  color: #dc2626;
+}
+
+@media (max-width: 700px) {
+  .verification-checks {
+    grid-template-columns: 1fr;
+  }
+
+  .verification-check {
+    min-height: 64px;
+  }
+}
+
+/* Clean publication verification details */
+
+.verification-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.verification-detail {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  line-height: 1.5;
+}
+
+.verification-detail-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.verification-detail-value {
+  color: var(--text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Failed checks */
+
+.verification-check-failed {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left-color: #ef4444;
+}
+
+.verification-check-failed .verification-check-name {
+  color: #991b1b;
+}
+
+@media (max-width: 700px) {
+  .verification-detail {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}

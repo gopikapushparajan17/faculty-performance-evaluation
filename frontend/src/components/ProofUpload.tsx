@@ -82,7 +82,7 @@ export default function ProofUpload({
             type="url"
             className="input"
             style={{ width: '100%' }}
-            placeholder="https://www.scopus.com/..."
+            placeholder="Enter DOI or DOI link"
             value={url}
             onChange={handleScopusChange}
             disabled={disabled}

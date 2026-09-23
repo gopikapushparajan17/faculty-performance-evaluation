@@ -1,5 +1,8 @@
 import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 WOS_API_URL = "https://api.clarivate.com/apis/wos-starter/v1/documents"
