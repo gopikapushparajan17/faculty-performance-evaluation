@@ -18,9 +18,86 @@ def _has_text(v: str | None) -> bool:
   return bool(v and v.strip())
 
 
+def _as_verification(verification) -> dict | None:
+    if isinstance(verification, dict):
+        return verification
+    return None
+
+
+def _author_verified(verification) -> bool:
+    v = _as_verification(verification)
+    return bool(
+        v
+        and v.get("publication_found")
+        and v.get("author_match") is True
+    )
+
+
+def _is_any_index_verified(verification) -> bool:
+    """True if Scopus, Web of Science, or Crossref confirms the publication."""
+    v = _as_verification(verification)
+    if not v:
+        return False
+
+    # Scopus (article-level status, nested article result, or source list)
+    if v.get("scopus_status") in ("indexed", "source_covered"):
+        return True
+
+    scopus = v.get("scopus") or {}
+    if isinstance(scopus, dict) and scopus.get("status") in (
+        "indexed",
+        "source_covered",
+    ):
+        return True
+
+    scopus_source = v.get("scopus_source") or {}
+    if (
+        isinstance(scopus_source, dict)
+        and scopus_source.get("status") == "source_covered"
+    ):
+        return True
+
+    # Web of Science (nested object used by publication_verifier)
+    wos = v.get("web_of_science") or v.get("wos") or {}
+    if isinstance(wos, dict):
+        if wos.get("indexed") is True:
+            return True
+        if wos.get("status") in ("indexed", "covered", "source_covered"):
+            return True
+
+    if v.get("wos_status") in ("indexed", "covered", "source_covered"):
+        return True
+
+    # Crossref: publication_found is set from the Crossref works lookup.
+    # Nested/status aliases are accepted if present.
+    if v.get("publication_found") is True:
+        return True
+
+    if v.get("crossref_status") in ("indexed", "found", "verified", "covered"):
+        return True
+
+    crossref = v.get("crossref") or {}
+    if isinstance(crossref, dict):
+        if crossref.get("found") is True or crossref.get("verified") is True:
+            return True
+        if crossref.get("status") in ("indexed", "found", "verified", "covered"):
+            return True
+
+    return False
+
+
 def _journal_index_points(journal_index) -> int:
-    verification = journal_index.verification
-    if isinstance(verification, dict) and verification.get("scopus_status") == "source_covered":
+    name = getattr(journal_index, "title", None) or getattr(
+        journal_index, "value", None
+    )
+    link = getattr(journal_index, "scopus_link", None)
+    verification = getattr(journal_index, "verification", None)
+    if (
+        _has_text(name)
+        and _has_text(link)
+        and _author_verified(verification)
+        and _is_any_index_verified(verification)
+    ):
         return 4
     return 0
 
@@ -63,7 +140,12 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
   if isinstance(m.conference_articles, ConferenceArticlesData):
     valid = [
         e for e in m.conference_articles.entries
-        if _has_text(e.title) and _is_valid_scopus(e.proof_file)
+        if (
+            _has_text(e.title)
+            and _has_text(e.proof_file)
+            and _author_verified(e.verification)
+            and _is_any_index_verified(e.verification)
+        )
     ]
     conf = min(len(valid), 4) * 4
 

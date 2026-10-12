@@ -535,8 +535,8 @@ def update_evaluation(eid: str, data: dict):
 
         if "modules" in data:
             modules = EvaluationModules(**data["modules"])
-            e.modules = modules.model_dump()
             e.total_points = _compute_total_points(modules)
+            e.modules = modules.model_dump()
 
         for field in [
             "status",

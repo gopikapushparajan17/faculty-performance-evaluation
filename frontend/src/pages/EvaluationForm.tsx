@@ -18,7 +18,12 @@ import {
   instActivitiesPoints,
   fdpOrganizedPoints,
 } from '../lib/pointRules'
-import type { Evaluation, EvaluationModules, FacultyPosition } from '../types/evaluation'
+import type {
+  Evaluation,
+  EvaluationModules,
+  FacultyPosition,
+  JournalIndexVerification,
+} from '../types/evaluation'
 
 const defaultModules: EvaluationModules = {
   student_feedback: { percentage: '', points: 0 },
@@ -43,6 +48,42 @@ const hasText = (v?: string) => !!v && v.trim().length > 0
 const isValidPublicationUrl = (url?: string) =>
   !!url && (/^https?:\/\/.+/i.test(url.trim()) || /^10\.\d{4,9}\/\S+$/i.test(url.trim()))
 const isValidFileProof = (url?: string) => !!url && url.trim().length > 0 && !isValidPublicationUrl(url)
+
+function authorVerified(verification?: JournalIndexVerification): boolean {
+  return !!verification?.publication_found && verification.author_match === true
+}
+
+function isAnyIndexVerified(
+  verification?: JournalIndexVerification,
+): boolean {
+  if (!verification) return false
+
+  // Crossref
+  if (verification.publication_found === true) {
+    return true
+  }
+
+  // Scopus article-level verification
+  if (verification.scopus_status === 'indexed') {
+    return true
+  }
+
+  // Scopus source-level verification
+  if (verification.scopus_source?.status === 'source_covered') {
+    return true
+  }
+
+  // Web of Science
+  if (verification.web_of_science?.status === 'indexed') {
+    return true
+  }
+
+  return false
+}
+
+function isVerifiedPublication(verification?: JournalIndexVerification): boolean {
+  return authorVerified(verification) && isAnyIndexVerified(verification)
+}
 
 type FormValues = Omit<Evaluation, 'id' | 'created_at' | 'updated_at'> & { id?: string }
 
@@ -82,14 +123,22 @@ export default function EvaluationForm() {
       ? studentFeedbackPoints(Number(m.student_feedback!.percentage), facultyPosition)
       : 0
 
+    const journalName =
+      m.journal_index?.title || m.journal_index?.value
     const journal =
+      hasText(journalName) &&
       hasText(m.journal_index?.scopus_link) &&
-      m.journal_index?.verification?.scopus_status === 'source_covered'
+      isVerifiedPublication(m.journal_index?.verification)
         ? 4
         : 0
 
     const confEntries = m.conference_articles?.entries ?? []
-    const validConf = confEntries.filter((e) => hasText(e.title) && isValidScopus(e.proof_file))
+    const validConf = confEntries.filter(
+      (e) =>
+        hasText(e.title) &&
+        hasText(e.proof_file) &&
+        isVerifiedPublication(e.verification),
+    )
     const conf = conferencePoints(validConf.length)
 
     const bcEntries = m.book_chapters?.entries ?? []
