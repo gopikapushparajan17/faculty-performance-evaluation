@@ -8,8 +8,10 @@ Scopus Source Title List provides additional source-level information.
 Web of Science provides additional indexing verification.
 """
 
+import math
 import os
 import re
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, unquote, quote, urlparse
 
@@ -34,6 +36,17 @@ SCOPUS_EID_PATTERN = re.compile(
     r"2-s2\.0-\d+",
     re.IGNORECASE,
 )
+
+
+def _sanitize_for_json(value):
+    """Convert NaN/Infinity floats to JSON-safe None values."""
+    if isinstance(value, dict):
+        return {k: _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_for_json(v) for v in value]
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return None
+    return value
 
 
 def _empty_result(
@@ -267,6 +280,7 @@ def _parse_work_message(
                     "given": given,
                     "family": family,
                     "full_name": full_name,
+                    "initials": author.get("initials") or None,
                     "orcid": _orcid_from_author(author),
                     "affiliations": _author_affiliations(author),
                 }
@@ -321,6 +335,98 @@ def normalize_name(name):
         .lower()
         .split()
     )
+
+
+ACADEMIC_TITLES = {"dr", "prof", "professor", "mr", "mrs", "ms"}
+
+
+def _normalize_token(t: str) -> str:
+    s = unicodedata.normalize("NFKD", t)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return s.lower()
+
+
+def _tokenize_name(name_str: str) -> list[str]:
+    if not name_str or not isinstance(name_str, str):
+        return []
+    cleaned = re.sub(r"[^\w\s]", " ", name_str)
+    cleaned = re.sub(r"[\d_]", " ", cleaned)
+    tokens = []
+    for token in cleaned.split():
+        norm = _normalize_token(token)
+        if norm and norm not in ACADEMIC_TITLES:
+            tokens.append(norm)
+    return tokens
+
+
+def _tokens_match(f_tokens: list[str], a_tokens: list[str]) -> bool:
+    if len(f_tokens) < 2 or len(a_tokens) < 2:
+        return False
+
+    if sorted(f_tokens) == sorted(a_tokens):
+        return True
+
+    f_words = [t for t in f_tokens if len(t) > 1]
+    f_initials = [t for t in f_tokens if len(t) == 1]
+    a_words = [t for t in a_tokens if len(t) > 1]
+    a_initials = [t for t in a_tokens if len(t) == 1]
+
+    common_words = set(f_words) & set(a_words)
+    if not common_words:
+        return False
+
+    f_rem_words = [w for w in f_words if w not in common_words]
+    a_rem_words = [w for w in a_words if w not in common_words]
+
+    if f_rem_words and a_rem_words:
+        return False
+
+    f_all_initials = sorted([w[0] for w in f_rem_words] + f_initials)
+    a_all_initials = sorted([w[0] for w in a_rem_words] + a_initials)
+
+    return f_all_initials == a_all_initials
+
+
+def match_author(faculty_name, author) -> bool:
+    """
+    Generalized match between a faculty member's name and a publication author.
+    Handles order differences, initials with/without periods, case differences,
+    extra punctuation, and metadata fields (given, family, initials, full_name).
+    """
+    f_tokens = _tokenize_name(faculty_name)
+    if len(f_tokens) < 2:
+        return False
+
+    if isinstance(author, dict):
+        candidates = []
+        if author.get("full_name"):
+            candidates.append(author["full_name"])
+        if author.get("name"):
+            candidates.append(author["name"])
+        given = author.get("given") or ""
+        family = author.get("family") or ""
+        if given or family:
+            candidates.append(f"{given} {family}".strip())
+            candidates.append(f"{family} {given}".strip())
+        initials = author.get("initials") or ""
+        if initials and family:
+            candidates.append(f"{initials} {family}".strip())
+            candidates.append(f"{family} {initials}".strip())
+
+        for cand in candidates:
+            a_tokens = _tokenize_name(cand)
+            if _tokens_match(f_tokens, a_tokens):
+                return True
+        return False
+
+    elif isinstance(author, str):
+        a_tokens = _tokenize_name(author)
+        return _tokens_match(f_tokens, a_tokens)
+
+    return False
+
+
+is_author_match = match_author
 
 
 def verify_publication(
@@ -544,39 +650,13 @@ def verify_publication(
 
         if faculty_name:
 
-            target_name = normalize_name(
-                faculty_name
-            )
-
             matched_author = None
 
             for author in result.get(
                 "authors",
                 [],
             ):
-
-                author_names = [
-                    normalize_name(
-                        author.get(
-                            "full_name",
-                            "",
-                        )
-                    ),
-                    normalize_name(
-                        author.get(
-                            "given",
-                            "",
-                        )
-                    ),
-                    normalize_name(
-                        author.get(
-                            "family",
-                            "",
-                        )
-                    ),
-                ]
-
-                if target_name in author_names:
+                if match_author(faculty_name, author):
                     matched_author = author
                     break
 
@@ -650,7 +730,7 @@ def verify_publication(
         wait=True
     )
 
-    return result
+    return _sanitize_for_json(result)
 
 
 def get_scopus_evidence(doi):
