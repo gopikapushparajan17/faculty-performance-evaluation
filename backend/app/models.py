@@ -31,6 +31,8 @@ class JournalIndexData(BaseModel):
     value: str = ""
     title: str = ""
     scopus_link: str = ""
+    issn: str = ""
+    eissn: str = ""
     verification: Optional[dict] = None
     points: int = 0
 

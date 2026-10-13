@@ -42,9 +42,33 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
     missing: list[str] = []
 
     # Scopus required only for: Journal Index, Conference Articles, Book Chapters
-    if _has_text(getattr(modules.journal_index, "title", "")) or _has_text(getattr(modules.journal_index, "value", "")):
-        if not _has_text(getattr(modules.journal_index, "scopus_link", "")):
-            missing.append("Journal Index requires a publication link.")
+    
+    journal = modules.journal_index
+
+    if _has_text(journal.title) or _has_text(journal.value):
+        has_publication_link = _has_text(journal.scopus_link)
+
+        has_issn_details = (
+            _has_text(journal.title)
+            and (
+                _has_text(journal.issn)
+                or _has_text(journal.eissn)
+            )
+        )
+
+        verification = journal.verification or {}
+        is_verified = (
+            verification.get("publication_found") is True
+            and verification.get("author_match") is True
+        )
+
+        if not has_publication_link and not (
+            has_issn_details and is_verified
+        ):
+            missing.append(
+                "Journal Index requires a publication link or a verified paper title with ISSN/e-ISSN."
+            )
+
 
     for e in modules.conference_articles.entries:
         if _has_text(e.title):
