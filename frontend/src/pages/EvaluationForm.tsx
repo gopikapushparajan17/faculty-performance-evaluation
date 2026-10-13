@@ -725,23 +725,40 @@ export default function EvaluationForm() {
                     </span>
                   </div>
 
-                  <div className="verification-check">
+                  {/* <div className="verification-check">
                     <div className="verification-check-name">Scopus</div>
 
                     <span
                       className={`verification-status ${
-                        form.watch('modules.journal_index.verification')?.scopus_status ===
-                        'source_covered'
+                        form.watch('modules.journal_index.verification')?.scopus_source?.status === 'source_covered'
                           ? 'verification-status-success'
                           : 'verification-status-error'
                       }`}
                     >
-                      {form.watch('modules.journal_index.verification')?.scopus_status ===
-                      'source_covered'
+                      {form.watch('modules.journal_index.verification')?.scopus_status === 'source_covered'
                         ? '✓ Source covered'
-                        : '✕ Source not covered'}
+                        : '✗ Source not covered'}
                     </span>
-                  </div>
+                  </div> */}
+
+
+                
+<div className="verification-check">
+  <div className="verification-check-name">Scopus</div>
+  <span
+    className={`verification-status ${
+      form.watch('modules.journal_index.verification')?.scopus_source?.status === 'source_covered'
+        ? 'verification-status-success'
+        : 'verification-status-error'
+    }`}
+  >
+    {form.watch('modules.journal_index.verification')?.scopus_source?.status === 'source_covered'
+      ? '✓ Source covered'
+      : '✗ Source not covered'}
+  </span>
+</div>
+
+
 
                   <div className="verification-check">
                     <div className="verification-check-name">Web of Science</div>
