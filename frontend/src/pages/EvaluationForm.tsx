@@ -82,7 +82,21 @@ function isAnyIndexVerified(
 }
 
 function isVerifiedPublication(verification?: JournalIndexVerification): boolean {
-  return authorVerified(verification) && isAnyIndexVerified(verification)
+  if (!authorVerified(verification)) {
+    return false
+  }
+
+  // For title + ISSN submissions, require article-level verification.
+  // Journal source coverage alone is not enough.
+  if (verification?.submission_method === 'title_issn') {
+    return (
+      verification.scopus_status === 'indexed' ||
+      verification.web_of_science?.status === 'indexed'
+    )
+  }
+
+  // Preserve the existing DOI and other verification behavior.
+  return isAnyIndexVerified(verification)
 }
 
 type FormValues = Omit<Evaluation, 'id' | 'created_at' | 'updated_at'> & { id?: string }
@@ -123,14 +137,22 @@ export default function EvaluationForm() {
       ? studentFeedbackPoints(Number(m.student_feedback!.percentage), facultyPosition)
       : 0
 
-    const journalName =
+    
+      const journalName =
       m.journal_index?.title || m.journal_index?.value
+
+    const hasJournalEvidence =
+      hasText(m.journal_index?.scopus_link) ||
+      hasText(m.journal_index?.issn) ||
+      hasText(m.journal_index?.eissn)
+
     const journal =
       hasText(journalName) &&
-      hasText(m.journal_index?.scopus_link) &&
+      hasJournalEvidence &&
       isVerifiedPublication(m.journal_index?.verification)
         ? 4
         : 0
+
 
     const confEntries = m.conference_articles?.entries ?? []
     const validConf = confEntries.filter(
@@ -343,11 +365,47 @@ export default function EvaluationForm() {
     }
   }
 
-  const verifyJournalPublication = async () => {
-    const url = form.getValues('modules.journal_index.scopus_link')?.trim()
 
-    if (!url) {
-      setVerificationError('Please enter a DOI or publication URL first.')
+  const verifyJournalPublication = async () => {
+    const url = form
+      .getValues('modules.journal_index.scopus_link')
+      ?.trim()
+
+    const title = form
+      .getValues('modules.journal_index.title')
+      ?.trim()
+
+    const issn = form
+      .getValues('modules.journal_index.issn')
+      ?.trim()
+
+    const eissn = form
+      .getValues('modules.journal_index.eissn')
+      ?.trim()
+
+    let payload: {
+      publication_url?: string
+      title?: string
+      issn?: string
+      eissn?: string
+    }
+
+    if (url) {
+      // Preserve the existing DOI/publication URL verification flow.
+      payload = {
+        publication_url: url,
+      }
+    } else if (title && (issn || eissn)) {
+      // New fallback: paper title plus journal ISSN/e-ISSN.
+      payload = {
+        title,
+        issn: issn || undefined,
+        eissn: eissn || undefined,
+      }
+    } else {
+      setVerificationError(
+        'Enter a publication URL/DOI, or a paper title with a journal ISSN or e-ISSN.'
+      )
       return
     }
 
@@ -355,9 +413,11 @@ export default function EvaluationForm() {
     setVerificationError('')
 
     try {
-      const { data } = await api.post('/publications/verify', {
-        publication_url: url,
-      })
+      console.log('VERIFY REQUEST:', payload)
+
+      const { data } = await api.post('/publications/verify', payload)
+
+      console.log('VERIFY RESPONSE:', data)
 
       form.setValue(
         'modules.journal_index.verification',
@@ -365,7 +425,7 @@ export default function EvaluationForm() {
         { shouldDirty: true }
       )
 
-      if (data.title) {
+      if (data.title && url) {
         form.setValue(
           'modules.journal_index.title',
           data.title,
@@ -380,12 +440,13 @@ export default function EvaluationForm() {
       setVerificationError(
         typeof detail === 'string'
           ? detail
-          : 'Publication verification failed. Please check the link and try again.'
+          : 'Publication verification failed. Please check the submitted details and try again.'
       )
     } finally {
       setVerificationLoading(false)
     }
   }
+
 
   const verifyConferencePublication = async (index: number) => {
     const url = form
@@ -547,15 +608,28 @@ export default function EvaluationForm() {
           </select>
         </ModuleCard>
 
-        {/* Module 2: Journal Index (Scopus required when filled) */}
+        
+        {/* Module 2: Journal Index */}
         <ModuleCard title="2. Journal Index" points={computed.journal_index} defaultOpen>
-
           <div className="form-row">
+            <input
+              type="text"
+              placeholder="Paper Title"
+              {...form.register('modules.journal_index.title')}
+              className="input input-flex"
+            />
 
             <input
               type="text"
-              placeholder="Journal Title"
-              {...form.register('modules.journal_index.title')}
+              placeholder="Journal ISSN (optional)"
+              {...form.register('modules.journal_index.issn')}
+              className="input input-flex"
+            />
+
+            <input
+              type="text"
+              placeholder="Journal e-ISSN (optional)"
+              {...form.register('modules.journal_index.eissn')}
               className="input input-flex"
             />
 
@@ -583,7 +657,16 @@ export default function EvaluationForm() {
               onClick={verifyJournalPublication}
               disabled={
                 verificationLoading ||
-                !form.watch('modules.journal_index.scopus_link')
+                !(
+                  form.watch('modules.journal_index.scopus_link')?.trim() ||
+                  (
+                    form.watch('modules.journal_index.title')?.trim() &&
+                    (
+                      form.watch('modules.journal_index.issn')?.trim() ||
+                      form.watch('modules.journal_index.eissn')?.trim()
+                    )
+                  )
+                )
               }
               className="btn btn-secondary"
             >
@@ -595,6 +678,8 @@ export default function EvaluationForm() {
               onClick={() => {
                 form.setValue('modules.journal_index.title', '')
                 form.setValue('modules.journal_index.scopus_link', '')
+                form.setValue('modules.journal_index.issn', '')
+                form.setValue('modules.journal_index.eissn', '')
                 form.setValue('modules.journal_index.value', '')
                 form.setValue('modules.journal_index.verification', undefined)
                 setVerificationError('')
@@ -603,8 +688,8 @@ export default function EvaluationForm() {
             >
               Remove
             </button>
-
           </div>
+
 
           {verificationError && (
             <div
@@ -640,16 +725,16 @@ export default function EvaluationForm() {
 
                 <span
                   className={`verification-badge ${
-                    form.watch('modules.journal_index.verification')?.publication_found &&
-                    form.watch('modules.journal_index.verification')?.scopus_status ===
-                      'source_covered'
+                    isVerifiedPublication(
+                      form.watch('modules.journal_index.verification')
+                    )
                       ? 'verification-badge-success'
                       : 'verification-badge-warning'
                   }`}
                 >
-                  {form.watch('modules.journal_index.verification')?.publication_found &&
-                  form.watch('modules.journal_index.verification')?.scopus_status ===
-                    'source_covered'
+                  {isVerifiedPublication(
+                    form.watch('modules.journal_index.verification')
+                  )
                     ? 'Verified'
                     : 'Review Required'}
                 </span>
@@ -1747,17 +1832,24 @@ function PublicationVerificationResult({
   verification: any
 }) {
   const crossrefFound = !!verification?.publication_found
-  const scopusIndexed =
-    verification?.scopus_status === 'source_covered' ||
-    !!verification?.scopus_eid
 
-  const wosIndexed =
-    verification?.web_of_science?.status === 'indexed'
+const scopusIndexed =
+  verification?.scopus_status === 'indexed' ||
+  !!verification?.scopus_eid
 
-  const authorMatched = !!verification?.author_match
+const wosIndexed =
+  verification?.web_of_science?.status === 'indexed'
 
-  const isVerified = crossrefFound && scopusIndexed
+const authorMatched = !!verification?.author_match
 
+const isVerified =
+  verification?.submission_method === 'title_issn'
+    ? crossrefFound &&
+      authorMatched &&
+      (scopusIndexed || wosIndexed)
+    : crossrefFound &&
+      (verification?.scopus_status === 'source_covered' ||
+        scopusIndexed)
   return (
     <div className="publication-verification">
       {/* Header */}

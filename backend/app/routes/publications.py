@@ -9,15 +9,22 @@ from app.publication_verifier import verify_publication
 router = APIRouter()
 
 
-class PublicationVerifyRequest(BaseModel):
-    publication_url: str
 
-    @field_validator("publication_url")
+class PublicationVerifyRequest(BaseModel):
+    publication_url: str | None = None
+    title: str | None = None
+    issn: str | None = None
+    eissn: str | None = None
+
+    @field_validator("publication_url", "title", "issn", "eissn")
     @classmethod
-    def publication_url_not_empty(cls, value: str) -> str:
-        if not value or not str(value).strip():
-            raise ValueError("publication_url must not be empty")
-        return str(value).strip()
+    def strip_optional_values(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+
 
 
 @router.post("/verify")
@@ -30,14 +37,25 @@ def verify_publication_route(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    print("USER:", user)
-    print("BEFORE VERIFY")
+    if body.publication_url:
+        return verify_publication(
+            body.publication_url,
+            faculty=user,
+        )
 
-    result = verify_publication(
-        body.publication_url,
-        faculty=user,
+    if body.title and (body.issn or body.eissn):
+        return verify_publication(
+            None,
+            faculty=user,
+            title=body.title,
+            issn=body.issn,
+            eissn=body.eissn,
+        )
+
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            "Provide a publication URL/DOI, or a paper title "
+            "together with a journal ISSN or e-ISSN."
+        ),
     )
-
-    print("AFTER VERIFY:", result)
-
-    return result

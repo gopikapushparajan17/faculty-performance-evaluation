@@ -29,6 +29,7 @@ export interface StudentFeedbackData {
 
 export interface JournalIndexVerification {
   publication_found?: boolean
+  submission_method?: string
   doi?: string
   scopus_eid?: string
   publication_type?: string
@@ -80,13 +81,17 @@ export interface JournalIndexVerification {
   }
 }
 
+
 export interface JournalIndexData {
   value: string
   title?: string
   scopus_link?: string
+  issn?: string
+  eissn?: string
   points?: number
   verification?: JournalIndexVerification
 }
+
 
 // Module 3: Conference Articles (max 4, 4 pts each)
 export interface ConferenceArticle {

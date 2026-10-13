@@ -12,6 +12,7 @@ import math
 import os
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, unquote, quote, urlparse
 
@@ -428,10 +429,140 @@ def match_author(faculty_name, author) -> bool:
 
 is_author_match = match_author
 
+def _verify_title_issn(title, issn=None, eissn=None, faculty=None):
+    """Find a likely Crossref match by paper title, then reuse DOI verification."""
+
+    from app.scopus_checker import check_scopus_source
+
+    submitted_title = title.strip()
+    submitted_issns = {
+        re.sub(r"[^0-9Xx]", "", value).upper()
+        for value in (issn, eissn)
+        if value
+    }
+
+    try:
+        source_result = check_scopus_source(
+            issn=issn,
+            eissn=eissn,
+        )
+    except Exception as exc:
+        source_result = {
+            "source_covered": False,
+            "error": str(exc),
+        }
+
+    def normalize_title(value):
+        return re.sub(
+            r"[^a-z0-9]+",
+            " ",
+            value.lower(),
+        ).strip()
+
+    normalized_submitted = normalize_title(submitted_title)
+
+    try:
+        response = requests.get(
+            "https://api.crossref.org/works",
+            params={
+                "query.title": submitted_title,
+                "rows": 5,
+            },
+            headers=_crossref_headers(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        items = response.json().get("message", {}).get("items", [])
+
+    except (requests.RequestException, ValueError) as exc:
+        result = _empty_result(
+            source_url=None,
+            error=f"Crossref title search failed: {exc}",
+        )
+        result.update({
+            "submission_method": "title_issn",
+            "submitted_title": submitted_title,
+            "submitted_issn": issn,
+            "submitted_eissn": eissn,
+            "submitted_scopus_source": source_result,
+        })
+        return result
+
+    best_item = None
+    best_similarity = 0.0
+
+    for item in items:
+        titles = item.get("title") or []
+        if not titles:
+            continue
+
+        candidate_title = normalize_title(titles[0])
+        similarity = SequenceMatcher(
+            None,
+            normalized_submitted,
+            candidate_title,
+        ).ratio()
+
+        if similarity < 0.90:
+            continue
+
+        crossref_issns = {
+            re.sub(r"[^0-9Xx]", "", value).upper()
+            for value in (item.get("ISSN") or [])
+        }
+
+        # Require Crossref to provide ISSN metadata matching the
+        # submitted journal ISSN or e-ISSN. Fail closed if unavailable.
+        if not submitted_issns or not crossref_issns:
+            continue
+
+        if not submitted_issns.intersection(crossref_issns):
+            continue
+        if similarity > best_similarity:
+            best_item = item
+            best_similarity = similarity
+
+    if not best_item or not best_item.get("DOI"):
+        result = _empty_result(
+            source_url=None,
+            error=(
+                "No sufficiently close Crossref title match with a "
+                "compatible journal ISSN was found."
+            ),
+        )
+        result.update({
+            "submission_method": "title_issn",
+            "submitted_title": submitted_title,
+            "submitted_issn": issn,
+            "submitted_eissn": eissn,
+            "submitted_scopus_source": source_result,
+        })
+        return result
+
+    result = verify_publication(
+        best_item["DOI"].strip(),
+        faculty=faculty,
+    )
+
+    result.update({
+        "submission_method": "title_issn",
+        "submitted_title": submitted_title,
+        "submitted_issn": issn,
+        "submitted_eissn": eissn,
+        "title_match_similarity": round(best_similarity, 3),
+        "submitted_scopus_source": source_result,
+    })
+
+    return result
+
 
 def verify_publication(
     publication_input,
     faculty=None,
+    *,
+    title=None,
+    issn=None,
+    eissn=None,
 ):
     """
     Verify a publication using:
@@ -462,9 +593,18 @@ def verify_publication(
         publication_input
     )
 
+    
     if not doi:
+        if title and (issn or eissn):
+            return _verify_title_issn(
+                title=title,
+                issn=issn,
+                eissn=eissn,
+                faculty=faculty,
+            )
 
         if scopus_eid:
+
             return _empty_result(
                 scopus_eid=scopus_eid,
                 source_url=source_url_out,
