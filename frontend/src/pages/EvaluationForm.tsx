@@ -164,7 +164,12 @@ export default function EvaluationForm() {
     const conf = conferencePoints(validConf.length)
 
     const bcEntries = m.book_chapters?.entries ?? []
-    const validBc = bcEntries.filter((e) => hasText(e.title) && isValidScopus(e.proof_file))
+    const validBc = bcEntries.filter(
+      (e) =>
+        hasText(e.title) &&
+        (isValidScopus(e.proof_file) ||
+          (hasText(e.proof_file) && isVerifiedPublication(e.verification))),
+    )
     const bc = bookChaptersPoints(validBc.length)
 
     const bookEntries = m.books?.entries ?? []

@@ -91,10 +91,13 @@ def _journal_index_points(journal_index) -> int:
         journal_index, "value", None
     )
     link = getattr(journal_index, "scopus_link", None)
+    issn = getattr(journal_index, "issn", None)
+    eissn = getattr(journal_index, "eissn", None)
     verification = getattr(journal_index, "verification", None)
+    has_evidence = _has_text(link) or _has_text(issn) or _has_text(eissn)
     if (
         _has_text(name)
-        and _has_text(link)
+        and has_evidence
         and _author_verified(verification)
         and _is_any_index_verified(verification)
     ):
@@ -153,7 +156,15 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
   if isinstance(m.book_chapters, BookChaptersData):
       valid = [
           e for e in m.book_chapters.entries
-          if _has_text(e.title) and _is_valid_scopus(e.proof_file)
+          if _has_text(e.title)
+          and (
+              _is_valid_scopus(e.proof_file)
+              or (
+                  _has_text(e.proof_file)
+                  and _author_verified(e.verification)
+                  and _is_any_index_verified(e.verification)
+              )
+          )
       ]
       bc = min(len(valid), 4) * 6
 

@@ -17,6 +17,7 @@ from app.crud import (
 
 from app.deps import get_current_user, require_role
 from fastapi.responses import FileResponse
+from app.database import _author_verified, _is_any_index_verified
 from app.models import Evaluation, EvaluationModules, User
 from app.pdf_generator import generate_evaluation_pdf
 
@@ -36,6 +37,24 @@ def _is_scopus(url: str | None) -> bool:
 def _is_file_proof(url: str | None) -> bool:
     # For file proofs we store either "/uploads/..." or an S3 http(s) URL.
     return bool(url) and isinstance(url, str) and url.strip() != "" and not _is_scopus(url.strip())
+
+
+def _is_publication_identifier(value: str | None) -> bool:
+    if not value or not isinstance(value, str):
+        return False
+    text = value.strip()
+    if not text:
+        return False
+    if _is_scopus(text):
+        return True
+    lowered = text.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return True
+    return text.lower().startswith("10.") and "/" in text[3:]
+
+
+def _is_verified_indexed_publication(verification) -> bool:
+    return _author_verified(verification) and _is_any_index_verified(verification)
 
 
 def _validate_modules_for_submit(modules: EvaluationModules) -> None:
@@ -78,8 +97,18 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
 
     for e in modules.book_chapters.entries:
         if _has_text(e.title):
-            if not _is_scopus(e.proof_file):
-                missing.append("Book Chapters require Scopus links for filled titles.")
+            if not _is_publication_identifier(e.proof_file):
+                missing.append(
+                    "Book Chapters require a publication identifier (DOI or publication link) for filled titles."
+                )
+                break
+            if not (
+                _is_scopus(e.proof_file)
+                or _is_verified_indexed_publication(e.verification)
+            ):
+                missing.append(
+                    "Book Chapters require a verified Scopus or Web of Science record for filled titles."
+                )
                 break
 
     # All other metrics require file upload if entry is filled

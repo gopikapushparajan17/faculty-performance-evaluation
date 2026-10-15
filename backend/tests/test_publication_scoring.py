@@ -213,6 +213,104 @@ class TestJournalScoring:
         m = _modules(journal=self._journal(v))
         assert _points(m)["journal_index"] == 4
 
+    def test_title_issn_wos_only_is_four_without_scopus_link(self):
+        m = _modules(
+            journal=JournalIndexData(
+                title="ISSN Paper",
+                issn="1234-5678",
+                scopus_link="",
+                verification=_wos_only(),
+            )
+        )
+        assert _points(m)["journal_index"] == 4
+
+
+def _chapter(title="Chapter One", proof=DOI_PROOF, verification=None):
+    return BookChapter(title=title, proof_file=proof, verification=verification)
+
+
+class TestBookChapterScoring:
+    def test_scopus_url_without_verification_still_scores_six(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[
+                        _chapter(
+                            proof="https://www.scopus.com/record/display.uri?eid=2-s2.0-1",
+                            verification=None,
+                        )
+                    ]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 6
+
+    def test_doi_scopus_only_is_six(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[_chapter(verification=_scopus_only())]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 6
+
+    def test_doi_wos_only_is_six(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[_chapter(verification=_wos_only())]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 6
+
+    def test_doi_scopus_and_wos_is_six_not_twelve(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[_chapter(verification=_scopus_and_wos())]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 6
+
+    def test_raw_doi_verified_scopus_is_six(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[
+                        _chapter(
+                            proof="10.1000/test-article",
+                            verification=_scopus_only(),
+                        )
+                    ]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 6
+
+    def test_doi_unverified_is_zero(self):
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[_chapter(verification=_no_index())]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 0
+
+    def test_doi_author_match_false_is_zero(self):
+        v = {**_scopus_only(), "author_match": False}
+        m = _modules(
+            extra={
+                "book_chapters": BookChaptersData(
+                    entries=[_chapter(verification=v)]
+                )
+            }
+        )
+        assert _points(m)["book_chapters"] == 0
+
 
 class TestRegressionAndPersistence:
     def test_s_other_module_scores_unchanged(self):
@@ -351,3 +449,87 @@ class TestRegressionAndPersistence:
         assert row.modules["conference_articles"]["points"] == 4
         assert row.modules["journal_index"]["points"] == 4
         assert result.total_points == 8
+
+    def test_create_evaluation_persists_verified_book_chapter_doi_points(self):
+        created = []
+
+        db = MagicMock()
+        db.add.side_effect = lambda row: created.append(row)
+
+        def refresh(row):
+            row.id = 11
+
+        db.refresh.side_effect = refresh
+
+        payload = {
+            "faculty_id": "1",
+            "ef_id": "1",
+            "academic_year": "2026",
+            "status": "draft",
+            "modules": {
+                "book_chapters": {
+                    "entries": [
+                        {
+                            "title": "Chapter One",
+                            "proof_file": DOI_PROOF,
+                            "verification": _scopus_only(),
+                        }
+                    ],
+                    "points": 0,
+                }
+            },
+        }
+
+        with patch("app.crud.SessionLocal", return_value=db):
+            from app.crud import create_evaluation
+
+            result = create_evaluation(payload)
+
+        row = created[0]
+        assert row.modules["book_chapters"]["points"] == 6
+        assert row.total_points == 6
+        assert result.modules.book_chapters.points == 6
+        assert result.total_points == 6
+
+
+class TestBookChapterSubmitValidation:
+    def _modules(self, proof, verification=None):
+        return EvaluationModules(
+            book_chapters=BookChaptersData(
+                entries=[_chapter(proof=proof, verification=verification)]
+            )
+        )
+
+    def test_verified_doi_is_accepted(self):
+        from app.routes.evaluations import _validate_modules_for_submit
+
+        _validate_modules_for_submit(self._modules(DOI_PROOF, _scopus_only()))
+
+    def test_raw_doi_with_verified_scopus_is_accepted(self):
+        from app.routes.evaluations import _validate_modules_for_submit
+
+        _validate_modules_for_submit(
+            self._modules("10.1000/test-article", _scopus_only())
+        )
+
+    def test_unverified_doi_is_rejected(self):
+        from fastapi import HTTPException
+        from app.routes.evaluations import _validate_modules_for_submit
+
+        try:
+            _validate_modules_for_submit(self._modules(DOI_PROOF, _no_index()))
+        except HTTPException as exc:
+            assert exc.status_code == 400
+            assert "verified" in str(exc.detail).lower()
+        else:
+            raise AssertionError("expected HTTPException")
+
+    def test_scopus_url_without_verification_is_still_accepted(self):
+        from app.routes.evaluations import _validate_modules_for_submit
+
+        _validate_modules_for_submit(
+            self._modules(
+                "https://www.scopus.com/record/display.uri?eid=2-s2.0-1",
+                None,
+            )
+        )
