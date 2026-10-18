@@ -553,7 +553,7 @@ def _verify_title_issn(title, issn=None, eissn=None, faculty=None):
         "submitted_scopus_source": source_result,
     })
 
-    return result
+    return _sanitize_for_json(result)
 
 
 def verify_publication(
