@@ -73,7 +73,7 @@ function isAnyIndexVerified(
     return true
   }
 
-  // Web of Science
+  // Web of Science article-level verification
   if (verification.web_of_science?.status === 'indexed') {
     return true
   }
@@ -799,7 +799,7 @@ export default function EvaluationForm() {
                 </div>
 
                 <div className="verification-checks">
-                  <div className="verification-check">
+                  {/* <div className="verification-check">
                     <div className="verification-check-name">Crossref</div>
 
                     <span
@@ -813,7 +813,7 @@ export default function EvaluationForm() {
                         ? '✓ Publication found'
                         : '✕ Publication not found'}
                     </span>
-                  </div>
+                  </div> */}
 
                   {/* <div className="verification-check">
                     <div className="verification-check-name">Scopus</div>
@@ -863,8 +863,8 @@ export default function EvaluationForm() {
                     >
                       {form.watch('modules.journal_index.verification')?.web_of_science
                         ?.status === 'indexed'
-                        ? '✓ Indexed'
-                        : '✕ Not indexed'}
+                        ? '✓ Article Indexed'
+                        : '✕ Article Not indexed'}
                     </span>
                   </div>
 
@@ -931,10 +931,9 @@ export default function EvaluationForm() {
                     </div>
                   </div>
                 </div>
-              )}
-
-            </div>
-          )}
+              )} 
+              </div>
+              )} 
 
           <input
             type="text"
@@ -1931,7 +1930,7 @@ const isVerified =
         </div>
 
         <div className="verification-checks">
-          <div
+          {/* <div
             className={`verification-check ${
               crossrefFound ? '' : 'verification-check-failed'
             }`}
@@ -1951,7 +1950,7 @@ const isVerified =
                 ? '✓ Publication found'
                 : '✕ Not found'}
             </span>
-          </div>
+          </div> */}
 
           <div
             className={`verification-check ${
