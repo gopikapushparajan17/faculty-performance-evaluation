@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [pending, setPending] = useState<Evaluation[]>([])
   const [approved, setApproved] = useState<Evaluation[]>([])
   const [rejected, setRejected] = useState<Evaluation[]>([])
+  const [revisionRequests, setRevisionRequests] = useState<Evaluation[]>([])
   const [hodCounts, setHodCounts] = useState({
     pending: 0,
     approved: 0,
@@ -20,7 +21,7 @@ export default function Dashboard() {
     total: 0,
   })
   const [hodView, setHodView] = useState<
-    'dashboard' | 'pending' | 'approved' | 'rejected' | 'all'
+    'dashboard' | 'pending' | 'approved' | 'rejected' | 'all' | 'revision_requests'
   >('dashboard')
   const [mine, setMine] = useState<Evaluation[]>([])
   const [profile, setProfile] = useState<FacultyProfile | null>(null)
@@ -30,6 +31,18 @@ export default function Dashboard() {
   const stateMessage = location.state?.message
 
   useEffect(() => {
+    const allowedViews = ['pending', 'approved', 'rejected', 'all']
+    const stateView = location.state?.returnHodView
+    const savedView = window.sessionStorage.getItem('hodReturnView')
+    const returnHodView = allowedViews.includes(stateView) ? stateView : savedView
+
+    if (user?.role === 'hod' && allowedViews.includes(returnHodView)) {
+      setHodView(returnHodView as 'pending' | 'approved' | 'rejected' | 'all')
+      setHodPage(1)
+    }
+  }, [location.state?.returnHodView, user?.role])
+
+  useEffect(() => {
     const load = async () => {
       try {
         if (!stateMessage) {
@@ -37,17 +50,24 @@ export default function Dashboard() {
         }
 
         if (user?.role === 'hod') {
-          const [pRes, aRes, rRes, countRes] = await Promise.all([
+          const [pRes, aRes, rRes, countRes, allRes] = await Promise.all([
             api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
             api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
             api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
             api.get('/evaluations/counts'),
+            api.get<Evaluation[]>('/evaluations/all'),
           ])
           
           setPending(pRes.data.items)
           setApproved(aRes.data.items)
           setRejected(rRes.data.items)
           setHodCounts(countRes.data)
+          setRevisionRequests(
+            allRes.data.filter((ev) => {
+              const revision = ev as Evaluation & { revision_requested?: boolean; revision_status?: string }
+              return revision.revision_requested === true && revision.revision_status === 'pending'
+            }),
+          )
         } else if (user?.role === 'faculty') {
           const [mineRes, profileRes] = await Promise.all([
             api.get<Evaluation[]>('/evaluations/mine'),
@@ -61,6 +81,7 @@ export default function Dashboard() {
         setPending([])
         setApproved([])
         setRejected([])
+        setRevisionRequests([])
         setMine([])
         setProfile(null)
       } finally {
@@ -78,7 +99,7 @@ export default function Dashboard() {
     }
   }, [stateMessage])
   useEffect(() => {
-    if (user?.role !== 'hod' || hodView === 'dashboard') return
+    if (user?.role !== 'hod' || hodView === 'dashboard' || hodView === 'revision_requests') return
   
     loadHodPage(hodView, hodPage).catch(() => {
       setMessage({
@@ -90,6 +111,13 @@ export default function Dashboard() {
 
 if (loading) return <div className="loading-text">Loading...</div>
 const allHodEvaluations = allEvaluations
+  const rejectedRevisionEvaluations = mine.filter((ev) => {
+    const revision = ev as Evaluation & {
+      revision_status?: string
+      revision_feedback?: string | null
+    }
+    return revision.revision_status === 'rejected'
+  })
 
   const sortRecent = (evaluations: Evaluation[]) =>
     evaluations.slice().sort((a, b) => {
@@ -168,19 +196,26 @@ const allHodEvaluations = allEvaluations
 }
 
 const refreshHodLists = async () => {
-  const [pRes, aRes, rRes, countRes] = await Promise.all([
+  const [pRes, aRes, rRes, countRes, allRes] = await Promise.all([
     api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
     api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
     api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
     api.get('/evaluations/counts'),
+    api.get<Evaluation[]>('/evaluations/all'),
   ])
 
+  setRevisionRequests(
+    allRes.data.filter((ev) => {
+      const revision = ev as Evaluation & { revision_requested?: boolean; revision_status?: string }
+      return revision.revision_requested === true && revision.revision_status === 'pending'
+    }),
+  )
   setPending(pRes.data.items)
   setApproved(aRes.data.items)
   setRejected(rRes.data.items)
   setHodCounts(countRes.data)
 
-  if (hodView !== 'dashboard') {
+  if (hodView !== 'dashboard' && hodView !== 'revision_requests') {
     await loadHodPage(hodView, hodPage)
   }
 }
@@ -190,16 +225,31 @@ const refreshHodLists = async () => {
     approved: 'Approved Evaluations',
     rejected: 'Rejected Evaluations',
     all: 'All Evaluations',
+    revision_requests: 'Revision Requests',
   }[hodView]
 
   return (
     <div>
+      <style>{`
+        .hod-stats-grid {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+        @media (max-width: 1100px) {
+          .hod-stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 700px) {
+          .hod-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 440px) {
+          .hod-stats-grid { grid-template-columns: minmax(0, 1fr); }
+        }
+      `}</style>
       <h1 className="page-title">
         {user?.role === 'hod' ? hodViewTitle : 'Evaluating Faculty Dashboard'}
       </h1>
 
       {user?.role === 'hod' && hodView === 'dashboard' ? (
-        <div className="stats-grid">
+        <div className="stats-grid hod-stats-grid">
           <button
             className="stat-card"
             onClick={() => {
@@ -243,6 +293,19 @@ const refreshHodLists = async () => {
             className="stat-card"
             onClick={() => {
               setHodPage(1)
+              setHodView('revision_requests')
+            }}
+            type="button"
+          >
+            <h3>{revisionRequests.length}</h3>
+            <p>Revision Requests</p>
+            <span>View requests →</span>
+          </button>
+
+          <button
+            className="stat-card"
+            onClick={() => {
+              setHodPage(1)
               setHodView('all')
             }}
             type="button"
@@ -275,6 +338,40 @@ const refreshHodLists = async () => {
         <div className={`card card-body mb-6 ${message.type === 'error' ? 'error-card' : ''}`}>
           <p style={{ margin: 0 }}>{message.text}</p>
         </div>
+      )}
+
+      {user?.role === 'faculty' && rejectedRevisionEvaluations.length > 0 && (
+        <section className="card card-body mb-6" role="status" aria-live="polite">
+          <h2 className="section-title">Revision Request Updates</h2>
+          <p>
+            The Head of Department has rejected the following revision request(s).
+            Review the feedback below before taking further action.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {rejectedRevisionEvaluations.map((ev) => {
+              const revision = ev as Evaluation & {
+                revision_feedback?: string | null
+              }
+              return (
+                <div key={ev.id} style={{ border: '1px solid #d1d5db', borderRadius: '8px', padding: '16px' }}>
+                  <p style={{ marginTop: 0 }}>
+                    <strong>Academic Year:</strong> {ev.academic_year}
+                  </p>
+                  <p>
+                    <strong>Revision request status:</strong> Rejected
+                  </p>
+                  <p>
+                    <strong>Feedback from the Head of Department:</strong>{' '}
+                    {revision.revision_feedback?.trim() || 'No feedback was provided.'}
+                  </p>
+                  <Link to={`/evaluation/${ev.id}/view`} className="btn btn-outline">
+                    View Evaluation
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {user?.role === 'hod' ? (
@@ -325,8 +422,14 @@ const refreshHodLists = async () => {
 
                         <div className="card-actions">
                           <Link
-                            to={`/evaluation/${ev.id}/view`}
-                            className="btn btn-outline"
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="btn btn-outline"
                           >
                             View
                           </Link>
@@ -430,8 +533,14 @@ const refreshHodLists = async () => {
                             </td>
                             <td>
                               <Link
-                                to={`/evaluation/${ev.id}/view`}
-                                className="link"
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link"
                               >
                                 View
                               </Link>
@@ -503,8 +612,14 @@ const refreshHodLists = async () => {
                             <td>{ev.reject_reason ?? "—"}</td>
                             <td>
                               <Link
-                                to={`/evaluation/${ev.id}/view`}
-                                className="link"
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link"
                               >
                                 View
                               </Link>
@@ -574,6 +689,66 @@ const refreshHodLists = async () => {
     }}
   />
 </div>
+              {hodView === 'revision_requests' && (
+                <section className="section">
+                  <p className="td-muted">
+                    Review each request on the evaluation page, where you can approve or reject it and provide feedback.
+                  </p>
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Revision Reason</th>
+                          <th>Request Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revisionRequests.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="td-muted">
+                              No pending revision requests.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(revisionRequests).map((ev) => {
+                            const revision = ev as Evaluation & {
+                              revision_reason?: string | null
+                              revision_status?: string
+                            }
+                            return (
+                              <tr key={ev.id}>
+                                <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                                <td>{ev.faculty?.employee_id ?? '—'}</td>
+                                <td>{ev.academic_year}</td>
+                                <td>{revision.revision_reason || '—'}</td>
+                                <td><span className="badge pending">{revision.revision_status ?? 'pending'}</span></td>
+                                <td>
+                                  <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link">
+                                    View Request
+                                  </Link>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
               {hodView === 'pending' && (
                 <section className="section">
                   <div className="card table-wrap">
@@ -607,6 +782,12 @@ const refreshHodLists = async () => {
                               <td>
                                 <Link
                                   to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
                                   className="link"
                                 >
                                   View
@@ -745,6 +926,12 @@ const refreshHodLists = async () => {
                               <td>
                                 <Link
                                   to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
                                   className="link"
                                 >
                                   View
@@ -828,6 +1015,12 @@ const refreshHodLists = async () => {
                               <td>
                                 <Link
                                   to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
                                   className="link"
                                 >
                                   View
@@ -915,6 +1108,12 @@ const refreshHodLists = async () => {
                               <td>
                                 <Link
                                   to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
                                   className="link"
                                 >
                                   View
@@ -1029,8 +1228,14 @@ const refreshHodLists = async () => {
 
                         <td>
                           <Link
-                            to={`/evaluation/${ev.id}/view`}
-                            className="link"
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link"
                           >
                             View
                           </Link>

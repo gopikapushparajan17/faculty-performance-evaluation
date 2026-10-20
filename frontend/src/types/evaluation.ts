@@ -4,6 +4,11 @@ export type EvaluationStatus =
   | 'hod_approved'
   | 'approved'
   | 'rejected'
+  export type RevisionStatus =
+  | 'none'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
 
   export type FacultyPosition =
   | 'assistant_professor'
@@ -228,6 +233,10 @@ export interface Evaluation {
   approved_at?: string
   approved_by?: string
   reject_reason?: string
+  revision_requested?: boolean
+  revision_reason?: string | null
+  revision_status?: RevisionStatus
+  revision_feedback?: string | null
   faculty_signature?: string
   hod_signature?: string
   created_at?: string

@@ -4,6 +4,7 @@ from app.mysql_db import SessionLocal
 from app.db_models import UserDB, FacultyDB, EvaluationDB
 from app.models import User, FacultyProfile, Evaluation, EvaluationModules
 from app.database import _compute_total_points
+from sqlalchemy import Boolean
 
 
 def get_user_by_email(email: str):
@@ -302,6 +303,10 @@ def get_evaluation(eid: str):
             approved_at=e.approved_at,
             approved_by=e.approved_by,
             reject_reason=e.reject_reason,
+            revision_requested=e.revision_requested,
+            revision_reason=e.revision_reason,
+            revision_status=e.revision_status,
+            revision_feedback=e.revision_feedback,
             faculty_signature=e.faculty_signature,
             hod_signature=e.hod_signature,
             principal_signature=e.principal_signature,
@@ -349,6 +354,10 @@ def list_evaluations_all():
                     approved_at=e.approved_at,
                     approved_by=e.approved_by,
                     reject_reason=e.reject_reason,
+                    revision_requested=e.revision_requested,
+                    revision_reason=e.revision_reason,
+                    revision_status=e.revision_status,
+                    revision_feedback=e.revision_feedback,
                     faculty_signature=e.faculty_signature,
                     hod_signature=e.hod_signature,
                     principal_signature=e.principal_signature,
@@ -433,6 +442,10 @@ def list_evaluations_paginated(
                     approved_at=e.approved_at,
                     approved_by=e.approved_by,
                     reject_reason=e.reject_reason,
+                    revision_requested=e.revision_requested,
+                    revision_reason=e.revision_reason,
+                    revision_status=e.revision_status,
+                    revision_feedback=e.revision_feedback,
                     faculty_signature=e.faculty_signature,
                     hod_signature=e.hod_signature,
                     principal_signature=e.principal_signature,
@@ -522,6 +535,7 @@ def get_principal_evaluation_counts():
 
     finally:
         db.close()
+
 def update_evaluation(eid: str, data: dict):
     db = SessionLocal()
 
@@ -544,6 +558,10 @@ def update_evaluation(eid: str, data: dict):
             "approved_at",
             "approved_by",
             "reject_reason",
+            "revision_requested",
+            "revision_reason",
+            "revision_status",
+            "revision_feedback",
             "faculty_signature",
             "hod_signature",
             "principal_signature",
@@ -558,6 +576,7 @@ def update_evaluation(eid: str, data: dict):
 
     finally:
         db.close()
+
 
 def get_faculty_by_email(email: str):
     db = SessionLocal()

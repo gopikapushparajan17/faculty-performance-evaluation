@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON, ForeignKey
+from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON, ForeignKey, Boolean
 
 
 class Base(DeclarativeBase):
@@ -52,6 +52,10 @@ class EvaluationDB(Base):
     approved_by = Column(String(50))
 
     reject_reason = Column(Text)
+    revision_requested = Column(Boolean, nullable=False, default=False)
+    revision_reason = Column(Text, nullable=True)
+    revision_status = Column(String(20), nullable=False, default="none")
+    revision_feedback = Column(Text, nullable=True)
 
     faculty_signature = Column(Text)
     hod_signature = Column(Text)

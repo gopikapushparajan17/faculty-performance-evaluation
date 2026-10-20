@@ -13,6 +13,8 @@ from app.crud import (
     get_faculty,
     get_principal_evaluation_counts,
     delete_evaluation,
+    get_evaluation_by_faculty_and_year,
+    get_faculty_by_user_id,
 )
 
 from app.deps import get_current_user, require_role
@@ -280,10 +282,35 @@ def get_eval(eid: str, user: User = Depends(get_current_user)):
     return ev
 @router.post("", response_model=Evaluation)
 def create_eval(body: dict, user: User = Depends(require_role("faculty"))):
-    mod = body.get("modules") or {}
+    # Resolve the faculty profile from the authenticated account instead of
+    # trusting a faculty_id supplied by the client.
+    faculty = get_faculty_by_user_id(user.id)
+    if not faculty:
+        raise HTTPException(404, "Faculty profile not found")
 
+    academic_year = str(body.get("academic_year") or "").strip()
+    if not academic_year:
+        raise HTTPException(400, "Academic year is required")
+
+    # Revisions must update this existing evaluation; never create a second
+    # evaluation for the same faculty member and academic year.
+    existing = get_evaluation_by_faculty_and_year(
+        int(faculty.id), academic_year
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"An evaluation already exists for academic year {academic_year}. "
+                "Open the existing evaluation to continue or request a revision."
+            ),
+        )
+
+    mod = body.get("modules") or {}
     body["modules"] = mod
+    body["faculty_id"] = faculty.id
     body["ef_id"] = user.id
+    body["academic_year"] = academic_year
     body["status"] = "draft"
 
     return create_evaluation(body)
@@ -297,7 +324,12 @@ def update_eval(eid: str, body: dict, user: User = Depends(require_role("faculty
     if str(existing.ef_id) != str(user.id):
         raise HTTPException(403, "Access denied")
     if existing.status != "draft":
-        raise HTTPException(400, "Only draft evaluations can be edited")
+        raise HTTPException(
+            status_code=400,
+            detail="Only draft evaluations can be edited. "
+                "A submitted evaluation requires HOD approval "
+                "of a revision request before editing."
+    )
     body.pop("status", None)
     ev = update_evaluation(eid, body)
     if not ev:
@@ -316,8 +348,143 @@ def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
         raise HTTPException(400, "Only draft evaluations can be submitted")
 
     _validate_modules_for_submit(ev.modules)
-    update_evaluation(eid, {"status": "pending"})
+    update_evaluation(
+        eid,
+        {
+            "status": "pending",
+            "revision_requested": False,
+            "revision_status": "none",
+            "revision_reason": None,
+            "revision_feedback": None,
+        },
+    )
     return {"status": "pending"}
+
+
+@router.post("/{eid}/revision-request")
+def request_revision(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("faculty")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Evaluation not found")
+
+    if str(ev.ef_id) != str(user.id):
+        raise HTTPException(403, "Access denied")
+
+    if ev.status == "draft":
+        raise HTTPException(
+            400,
+            "Draft evaluations do not need a revision request",
+        )
+
+    if ev.revision_status == "pending":
+        raise HTTPException(
+            409,
+            "A revision request is already pending",
+        )
+
+    reason = str(body.get("reason") or "").strip()
+
+    if not reason:
+        raise HTTPException(
+            400,
+            "Revision reason is required",
+        )
+
+    update_evaluation(
+        eid,
+        {
+            "revision_requested": True,
+            "revision_reason": reason,
+            "revision_status": "pending",
+            "revision_feedback": None,
+        },
+    )
+
+    return {"revision_status": "pending"}
+
+
+@router.post("/{eid}/revision-approve")
+def approve_revision(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("hod")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Evaluation not found")
+
+    if ev.revision_status != "pending":
+        raise HTTPException(
+            400,
+            "No pending revision request exists",
+        )
+
+    feedback = str(body.get("feedback") or "").strip()
+
+    update_evaluation(
+        eid,
+        {
+            "revision_requested": False,
+            "revision_status": "approved",
+            "revision_feedback": feedback,
+            "status": "draft",
+            "approved_at": None,
+            "approved_by": None,
+            "reject_reason": None,
+            "faculty_signature": None,
+            "hod_signature": None,
+            "principal_signature": None,
+        },
+    )
+
+    return {
+        "revision_status": "approved",
+        "status": "draft",
+        "message": "Revision approved. Faculty can now edit the evaluation.",
+    }
+
+
+@router.post("/{eid}/revision-reject")
+def reject_revision(
+    eid: str,
+    body: dict,
+    user: User = Depends(require_role("hod")),
+):
+    ev = get_evaluation(eid)
+
+    if not ev:
+        raise HTTPException(404, "Evaluation not found")
+
+    if ev.revision_status != "pending":
+        raise HTTPException(
+            400,
+            "No pending revision request exists",
+        )
+
+    feedback = str(body.get("feedback") or "").strip()
+
+    if not feedback:
+        raise HTTPException(
+            400,
+            "Feedback is required when rejecting a revision request",
+        )
+
+    update_evaluation(
+        eid,
+        {
+            "revision_requested": False,
+            "revision_status": "rejected",
+            "revision_feedback": feedback,
+        },
+    )
+
+    return {"revision_status": "rejected"}
 
 
 @router.post("/{eid}/approve")

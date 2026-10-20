@@ -218,19 +218,162 @@ export default function EvaluationView() {
   const location = useLocation()
   const { user } = useAuth()
 
-  const [evalData, setEvalData] = useState<Evaluation | null>(null)
+  type EvaluationWithRevision = Evaluation & {
+    revision_requested?: boolean
+    revision_reason?: string | null
+    revision_status?: string
+    revision_feedback?: string | null
+  }
+
+  const [evalData, setEvalData] = useState<EvaluationWithRevision | null>(null)
   const [loading, setLoading] = useState(true)
+  const [revisionReason, setRevisionReason] = useState('')
+  const [submittingRevision, setSubmittingRevision] = useState(false)
 
   useEffect(() => {
     if (!evaluationId) return
 
     setLoading(true)
     api
-      .get<Evaluation>(`/evaluations/${evaluationId}`)
+      .get<EvaluationWithRevision>(`/evaluations/${evaluationId}`)
       .then(({ data }) => setEvalData(data))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [evaluationId, location.pathname])
+
+  const requestRevision = async () => {
+    if (!evaluationId) return
+
+    const reason = revisionReason.trim()
+    if (!reason) {
+      alert('Please enter a reason for requesting a revision.')
+      return
+    }
+
+    setSubmittingRevision(true)
+    try {
+      await api.post(`/evaluations/${evaluationId}/revision-request`, {
+        reason,
+      })
+
+      setEvalData((current) =>
+        current
+          ? {
+              ...current,
+              revision_requested: true,
+              revision_reason: reason,
+              revision_status: 'pending',
+              revision_feedback: null,
+            }
+          : current
+      )
+      setRevisionReason('')
+      alert('Revision request sent to the HOD.')
+    } catch (err: unknown) {
+      const detail =
+        err &&
+        typeof err === 'object' &&
+        'response' in err
+          ? (
+              err as {
+                response?: {
+                  data?: {
+                    detail?: string
+                  }
+                }
+              }
+            ).response?.data?.detail
+          : null
+
+      alert(
+        typeof detail === 'string'
+          ? detail
+          : 'Failed to submit the revision request.'
+      )
+    } finally {
+      setSubmittingRevision(false)
+    }
+  }
+
+  const approveRevisionAsHod = async () => {
+    if (!evaluationId) return
+
+    const feedback = window.prompt(
+      'Enter feedback for the faculty member (optional):'
+    )
+    if (feedback === null) return
+
+    try {
+      await api.post(`/evaluations/${evaluationId}/revision-approve`, {
+        feedback: feedback.trim(),
+      })
+
+      setEvalData((current) =>
+        current
+          ? {
+              ...current,
+              status: 'draft',
+              revision_requested: false,
+              revision_status: 'approved',
+              revision_feedback: feedback.trim() || null,
+            }
+          : current
+      )
+      alert('Revision request approved. The faculty member can now edit this evaluation.')
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === 'object' && 'response' in err
+          ? (
+              err as {
+                response?: { data?: { detail?: string } }
+              }
+            ).response?.data?.detail
+          : null
+      alert(typeof detail === 'string' ? detail : 'Failed to approve the revision request.')
+    }
+  }
+
+  const rejectRevisionAsHod = async () => {
+    if (!evaluationId) return
+
+    const feedback = window.prompt(
+      'Enter the reason for rejecting this revision request:'
+    )
+    if (!feedback?.trim()) {
+      if (feedback !== null) {
+        alert('Feedback is required when rejecting a revision request.')
+      }
+      return
+    }
+
+    try {
+      await api.post(`/evaluations/${evaluationId}/revision-reject`, {
+        feedback: feedback.trim(),
+      })
+
+      setEvalData((current) =>
+        current
+          ? {
+              ...current,
+              revision_requested: false,
+              revision_status: 'rejected',
+              revision_feedback: feedback.trim(),
+            }
+          : current
+      )
+      alert('Revision request rejected. Feedback has been recorded.')
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === 'object' && 'response' in err
+          ? (
+              err as {
+                response?: { data?: { detail?: string } }
+              }
+            ).response?.data?.detail
+          : null
+      alert(typeof detail === 'string' ? detail : 'Failed to reject the revision request.')
+    }
+  }
 
   const approveAsHod = async () => {
     if (!evaluationId) return
@@ -238,14 +381,16 @@ export default function EvaluationView() {
     try {
       await api.post(`/evaluations/${evaluationId}/approve`)
 
+
       setEvalData((e) =>
         e
           ? {
               ...e,
-              status: 'approved',
+              status: 'hod_approved',
             }
           : null
       )
+
 
       alert('Evaluation approved.')
     } catch (err: unknown) {
@@ -504,7 +649,17 @@ export default function EvaluationView() {
 
           <button
             type="button"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => {
+              const returnHodView = location.state?.returnHodView
+              if (
+                user?.role === 'hod' &&
+                ['pending', 'approved', 'rejected', 'all'].includes(returnHodView)
+              ) {
+                navigate('/dashboard', { state: { returnHodView } })
+              } else {
+                navigate(-1)
+              }
+            }}
             className="btn btn-outline"
           >
             Back
@@ -902,6 +1057,132 @@ export default function EvaluationView() {
             </p>
           )}
       </div>
+
+      {/* FACULTY REVISION REQUEST */}
+      {user?.role === 'faculty' && evalData.status !== 'draft' && (
+        <div className="card card-body mb-6">
+          <h2 className="section-title">Revision Request</h2>
+
+          {evalData.revision_status === 'pending' ? (
+            <div>
+              <p>
+                Your revision request is <strong>awaiting review by the Head of Department</strong>.
+              </p>
+              {evalData.revision_reason && (
+                <p>
+                  <strong>Reason submitted:</strong> {evalData.revision_reason}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              {evalData.revision_feedback && (
+                <p>
+                  <strong>Feedback from the Head of Department:</strong> {evalData.revision_feedback}
+                </p>
+              )}
+              <p style={{ marginTop: 0, marginBottom: '18px', lineHeight: 1.6 }}>
+                Provide the reason for requesting a revision and identify the
+                information that requires correction. The evaluation will remain
+                locked until the Head of Department approves this request.
+              </p>
+              <label
+                htmlFor="revision-reason"
+                style={{ display: 'block', fontWeight: 600, marginBottom: '8px' }}
+              >
+                Reason for revision <span aria-hidden="true">*</span>
+              </label>
+              <textarea
+                id="revision-reason"
+                name="revision-reason"
+                rows={5}
+                value={revisionReason}
+                onChange={(event) => setRevisionReason(event.target.value)}
+                placeholder="Enter the reason for this request, including the details that require correction."
+                disabled={submittingRevision}
+                required
+                aria-describedby="revision-reason-help"
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxWidth: '820px',
+                  minHeight: '140px',
+                  boxSizing: 'border-box',
+                  padding: '14px 16px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--surface, #ffffff)',
+                  color: 'var(--text, #1f2937)',
+                  font: 'inherit',
+                  fontSize: '15px',
+                  lineHeight: 1.5,
+                  resize: 'vertical',
+                  outlineOffset: '2px',
+                  marginBottom: '8px',
+                }}
+              />
+              <p
+                id="revision-reason-help"
+                style={{ color: 'var(--muted, #64748b)', fontSize: '13px', marginTop: 0, marginBottom: '20px' }}
+              >
+                This explanation will be reviewed by the Head of Department.
+              </p>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={requestRevision}
+                  disabled={submittingRevision || !revisionReason.trim()}
+                >
+                  {submittingRevision ? 'Submitting...' : 'Submit Revision Request'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* HOD REVISION REQUEST REVIEW */}
+      {user?.role === 'hod' && evalData.revision_status === 'pending' && (
+        <div className="card card-body mb-6">
+          <h2 className="section-title">Revision Request Review</h2>
+          <p style={{ marginTop: 0, lineHeight: 1.6 }}>
+            The faculty member has requested permission to revise this evaluation.
+            Review the reason below and approve or reject the request.
+          </p>
+          <div
+            style={{
+              padding: '14px 16px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              backgroundColor: 'var(--surface, #ffffff)',
+              marginBottom: '18px',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            <strong>Reason submitted</strong>
+            <p style={{ marginBottom: 0, marginTop: '8px' }}>
+              {evalData.revision_reason || 'No reason provided.'}
+            </p>
+          </div>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn btn-success"
+              onClick={approveRevisionAsHod}
+            >
+              Approve Revision
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={rejectRevisionAsHod}
+            >
+              Reject Revision
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* APPROVAL */}
       <div
