@@ -176,10 +176,10 @@ class Evaluation(BaseModel):
     approved_by: Optional[str] = None
     reject_reason: Optional[str] = None
     # Revision workflow
+    revision_status: str | None = None
     revision_requested: bool = False
-    revision_reason: Optional[str] = None
-    revision_status: str = "none"
-    revision_feedback: Optional[str] = None
+    revision_reason: str | None = None
+    revision_feedback: str | None = None
     faculty_signature: Optional[str] = None
     hod_signature: Optional[str] = None
     principal_signature: Optional[str] = None
