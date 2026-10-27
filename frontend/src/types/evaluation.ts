@@ -131,11 +131,43 @@ export interface BooksData {
   points: number
 }
 
+export interface PatentVerificationResult {
+  verification_status: 'verified' | 'not_verified' | 'not_found' | 'unable_to_verify'
+  association_type: 'inventor' | 'applicant' | 'holder' | 'none' | null
+  matched_name: string | null
+  patent_number: string | null
+  application_number: string | null
+  title: string | null
+  status: string | null
+  inventors: string[]
+  applicants: string[]
+  current_holder: string | null
+  filing_date: string | null
+  grant_date: string | null
+  verification_source: string | null
+  verified_at: string | null
+}
+
 // Module 6: IPR (unlimited)
 export interface IPREntry {
   type: 'patent' | 'copyright' | 'trademark'
   description: string
   proof_file?: string
+  patent_number?: string | null
+  application_number?: string | null
+  patent_link?: string | null
+  title?: string | null
+  status?: string | null
+  inventors?: string[]
+  applicants?: string[]
+  current_holder?: string | null
+  filing_date?: string | null
+  grant_date?: string | null
+  verification_status?: 'verified' | 'not_verified' | 'not_found' | 'unable_to_verify' | null
+  association_type?: 'inventor' | 'applicant' | 'holder' | 'none' | null
+  matched_name?: string | null
+  verification_source?: string | null
+  verified_at?: string | null
 }
 export interface IPRData {
   entries: IPREntry[]

@@ -73,6 +73,21 @@ class IPREntry(BaseModel):
     type: str = "patent"  # patent | copyright | trademark
     description: str = ""
     proof_file: Optional[str] = None
+    patent_number: Optional[str] = None
+    application_number: Optional[str] = None
+    patent_link: Optional[str] = None
+    title: Optional[str] = None
+    status: Optional[str] = None
+    inventors: list[str] = []
+    applicants: list[str] = []
+    current_holder: Optional[str] = None
+    filing_date: Optional[str] = None
+    grant_date: Optional[str] = None
+    verification_status: Optional[str] = None  # verified | not_verified | not_found | unable_to_verify
+    association_type: Optional[str] = None     # inventor | applicant | holder | none
+    matched_name: Optional[str] = None
+    verification_source: Optional[str] = None
+    verified_at: Optional[str] = None
 
 
 class IPRData(BaseModel):

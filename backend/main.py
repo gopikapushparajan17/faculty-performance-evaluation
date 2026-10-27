@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth, faculty, evaluations, upload, publications
+from app.routes import auth, faculty, evaluations, upload, publications, patents
 from app.scopus_updater import start_scopus_updater
 
 app = FastAPI(title="Faculty Performance Evaluation API")
@@ -22,6 +22,7 @@ app.include_router(faculty.router, prefix="/api/faculty", tags=["faculty"])
 app.include_router(evaluations.router, prefix="/api/evaluations", tags=["evaluations"])
 app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 app.include_router(publications.router, prefix="/api/publications", tags=["publications"])
+app.include_router(patents.router, prefix="/api/patents", tags=["patents"])
 
 # Serve local uploads when S3 not configured
 if Path("uploads").exists():

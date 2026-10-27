@@ -902,18 +902,121 @@ export default function EvaluationView() {
             <h3>IPR</h3>
 
             {m.ipr.entries.map(
-              (entry, index) => (
-                <EvidenceRow
-                  key={index}
-                  title={
-                    `${entry.type}: ${
-                      entry.description ||
-                      `IPR ${index + 1}`
-                    }`
-                  }
-                  proof={entry.proof_file}
-                />
-              )
+              (entry, index) => {
+                const isPatent = entry.type === 'patent'
+                let statusBadgeText = 'Manually reviewed'
+                let statusBadgeStyle = { backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }
+
+                if (entry.verification_status === 'verified') {
+                  statusBadgeText = 'Automatically verified'
+                  statusBadgeStyle = { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
+                } else if (entry.verification_status === 'not_verified') {
+                  statusBadgeText = 'Not verified'
+                  statusBadgeStyle = { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }
+                } else if (entry.verification_status === 'unable_to_verify') {
+                  statusBadgeText = 'Unable to verify'
+                  statusBadgeStyle = { backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }
+                }
+
+                const applicantHolder =
+                  (entry.applicants && entry.applicants.length > 0 ? entry.applicants.join(', ') : entry.current_holder) || 'None listed'
+
+                let associationDisplay = 'None'
+                if (entry.association_type === 'inventor') {
+                  associationDisplay = 'Inventor (Faculty member is listed as an inventor)'
+                } else if (entry.association_type === 'applicant' || entry.association_type === 'holder') {
+                  associationDisplay = 'Applicant / Holder (Faculty member is listed as an applicant/holder)'
+                }
+
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <strong>
+                          {`${entry.type.toUpperCase()}: ${
+                            entry.title || entry.description || `IPR ${index + 1}`
+                          }`}
+                        </strong>
+                      </div>
+
+                      <ProofLink url={entry.proof_file} />
+                    </div>
+
+                    {isPatent && (entry.patent_number || entry.verification_status) && (
+                      <div
+                        style={{
+                          marginTop: '0.75rem',
+                          padding: '0.875rem 1rem',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          backgroundColor: '#fafafa',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.625rem' }}>
+                          <strong style={{ fontSize: '13px' }}>Patent Information</strong>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              ...statusBadgeStyle,
+                            }}
+                          >
+                            {statusBadgeText}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.35rem 1rem' }}>
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Patent:</span>
+                          <span>Patent</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Patent Number:</span>
+                          <span>{entry.patent_number || entry.application_number || 'N/A'}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Title:</span>
+                          <span>{entry.title || entry.description || 'N/A'}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Status:</span>
+                          <span>{entry.status || 'Published'}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Inventors:</span>
+                          <span>{entry.inventors && entry.inventors.length > 0 ? entry.inventors.join(', ') : 'None listed'}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Applicant / Holder:</span>
+                          <span>{applicantHolder}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Verification Source:</span>
+                          <span>{entry.verification_source || 'Not specified'}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Faculty Association:</span>
+                          <span>{associationDisplay}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Verification Status:</span>
+                          <span style={{ fontWeight: 600 }}>{statusBadgeText}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
             )}
           </div>
         )}
