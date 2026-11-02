@@ -88,6 +88,8 @@ class IPREntry(BaseModel):
     matched_name: Optional[str] = None
     verification_source: Optional[str] = None
     verified_at: Optional[str] = None
+    patent_found: Optional[bool] = None
+    inventor_match: Optional[bool] = None
 
 
 class IPRData(BaseModel):

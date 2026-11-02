@@ -177,8 +177,7 @@ export default function EvaluationForm() {
     const books = booksPoints(validBooks)
 
     const iprEntries = m.ipr?.entries ?? []
-    const validIpr = iprEntries.filter((e) => hasText(e.description) && isValidFileProof(e.proof_file))
-    const ipr = iprPoints(validIpr)
+    const ipr = iprPoints(iprEntries)
 
     const fundedEntries = m.funded_projects?.entries ?? []
     const validFunded = fundedEntries.filter(
@@ -1342,6 +1341,8 @@ function PatentVerificationResultDisplay({
   inventors,
   applicants,
   currentHolder,
+  patentFound,
+  inventorMatch,
 }: {
   verificationStatus?: string | null
   associationType?: string | null
@@ -1351,8 +1352,16 @@ function PatentVerificationResultDisplay({
   inventors?: string[]
   applicants?: string[]
   currentHolder?: string | null
+  patentFound?: boolean | null
+  inventorMatch?: boolean | null
 }) {
-  if (!verificationStatus) return null
+  if (!verificationStatus) {
+    return (
+      <div style={{ marginTop: '0.75rem', fontSize: '13px', color: '#64748b', fontStyle: 'italic' }}>
+        Status: Patent verification pending. Enter patent number/link and click "Verify Patent" to verify ownership and award points (30 pts for verified inventor).
+      </div>
+    )
+  }
 
   if (verificationStatus === 'unable_to_verify') {
     return (
@@ -1366,11 +1375,14 @@ function PatentVerificationResultDisplay({
           color: '#92400e',
         }}
       >
-        <p style={{ fontWeight: 600, margin: '0 0 0.25rem' }}>
-          Patent could not be automatically verified.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <span style={{ fontWeight: 600 }}>⚠ Patent could not be verified by registry</span>
+          <span style={{ fontWeight: 700, color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+            0 pts
+          </span>
+        </div>
         <p style={{ margin: '0 0 0.5rem', fontSize: '13px' }}>
-          Please provide supporting evidence for HOD review.
+          External registry provider could not verify the record at this time.
         </p>
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#b45309' }}>
           Verification Status: UNABLE TO VERIFY
@@ -1391,11 +1403,14 @@ function PatentVerificationResultDisplay({
           color: '#b91c1c',
         }}
       >
-        <p style={{ fontWeight: 600, margin: '0 0 0.25rem' }}>
-          ✗ Patent record not found
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <span style={{ fontWeight: 600 }}>✗ Patent record not found</span>
+          <span style={{ fontWeight: 700, color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+            0 pts
+          </span>
+        </div>
         <p style={{ margin: '0 0 0.5rem', fontSize: '13px' }}>
-          Please provide supporting evidence for HOD review.
+          No matching patent was found in the database.
         </p>
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626' }}>
           Verification Status: NOT FOUND
@@ -1404,7 +1419,13 @@ function PatentVerificationResultDisplay({
     )
   }
 
-  const isVerified = verificationStatus === 'verified'
+  const isEligible =
+    verificationStatus === 'verified' &&
+    patentFound === true &&
+    inventorMatch === true &&
+    associationType === 'inventor'
+  const isVerified = verificationStatus === 'verified' && patentFound === true
+  const isInventor = associationType === 'inventor' && inventorMatch === true
   const applicantHolder =
     (applicants && applicants.length > 0 ? applicants.join(', ') : currentHolder) || 'None listed'
 
@@ -1414,12 +1435,26 @@ function PatentVerificationResultDisplay({
         marginTop: '0.75rem',
         padding: '0.875rem 1rem',
         backgroundColor: '#ffffff',
-        border: '1px solid #e2e8f0',
+        border: `1px solid ${isEligible ? '#bbf7d0' : '#e2e8f0'}`,
         borderRadius: '6px',
       }}
     >
-      <div style={{ color: '#16a34a', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-        <span>✓</span> Patent Found
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <div style={{ color: isVerified ? '#16a34a' : '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <span>{isVerified ? '✓' : '✗'}</span> Patent Record {isVerified ? 'Found' : 'Not Verified'}
+        </div>
+        <span
+          style={{
+            fontWeight: 700,
+            fontSize: '12px',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            backgroundColor: isEligible ? '#dcfce7' : '#fee2e2',
+            color: isEligible ? '#15803d' : '#b91c1c',
+          }}
+        >
+          {isEligible ? '30 pts' : '0 pts'}
+        </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.35rem 1rem', fontSize: '13px', marginBottom: '0.75rem' }}>
@@ -1440,22 +1475,28 @@ function PatentVerificationResultDisplay({
       </div>
 
       <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.625rem' }}>
-        {isVerified ? (
+        {isEligible ? (
           <div>
             <div style={{ color: '#16a34a', fontWeight: 700, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <span>✓</span> Faculty Name Match
-            </div>
-            <div style={{ fontSize: '13px', marginBottom: '0.25rem' }}>
-              <strong>Association:</strong>{' '}
-              {associationType === 'inventor' ? 'Inventor' : 'Applicant / Holder'}
+              <span>✓</span> Faculty Name Matched as Inventor
             </div>
             <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-              {associationType === 'inventor'
-                ? 'Faculty member is listed as an inventor.'
-                : 'Faculty member is listed as an applicant/holder.'}
+              Faculty member is verified as a listed inventor. 30 points awarded.
             </div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>
-              Verification Status: VERIFIED
+              Verification Status: VERIFIED (INVENTOR MATCH)
+            </div>
+          </div>
+        ) : isVerified && !isInventor ? (
+          <div>
+            <div style={{ color: '#c2410c', fontWeight: 700, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span>⚠</span> Faculty listed as Applicant/Holder only (Not Inventor)
+            </div>
+            <div style={{ fontSize: '13px', color: '#9a3412', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+              Faculty member is listed as an applicant or holder. Patent points (30 pts) require the faculty member to be an inventor.
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c' }}>
+              Verification Status: VERIFIED (NO INVENTOR MATCH - 0 PTS)
             </div>
           </div>
         ) : (
@@ -1464,7 +1505,7 @@ function PatentVerificationResultDisplay({
               <span>✗</span> Faculty association not found
             </div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626' }}>
-              Verification Status: NOT VERIFIED
+              Verification Status: NOT VERIFIED (0 PTS)
             </div>
           </div>
         )}
@@ -1509,20 +1550,22 @@ function IPRModule({
         patent_link: pLink || null,
       })
 
-      form.setValue(`modules.ipr.entries.${i}.verification_status`, res.verification_status)
-      form.setValue(`modules.ipr.entries.${i}.association_type`, res.association_type)
-      form.setValue(`modules.ipr.entries.${i}.matched_name`, res.matched_name)
-      form.setValue(`modules.ipr.entries.${i}.patent_number`, res.patent_number || pNum)
-      form.setValue(`modules.ipr.entries.${i}.application_number`, res.application_number)
-      form.setValue(`modules.ipr.entries.${i}.title`, res.title)
-      form.setValue(`modules.ipr.entries.${i}.status`, res.status)
-      form.setValue(`modules.ipr.entries.${i}.inventors`, res.inventors)
-      form.setValue(`modules.ipr.entries.${i}.applicants`, res.applicants)
-      form.setValue(`modules.ipr.entries.${i}.current_holder`, res.current_holder)
-      form.setValue(`modules.ipr.entries.${i}.filing_date`, res.filing_date)
-      form.setValue(`modules.ipr.entries.${i}.grant_date`, res.grant_date)
-      form.setValue(`modules.ipr.entries.${i}.verification_source`, res.verification_source)
-      form.setValue(`modules.ipr.entries.${i}.verified_at`, res.verified_at)
+      form.setValue(`modules.ipr.entries.${i}.verification_status`, res.verification_status, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.association_type`, res.association_type, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.matched_name`, res.matched_name, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.patent_number`, res.patent_number || pNum, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.application_number`, res.application_number, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.title`, res.title, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.status`, res.status, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.inventors`, res.inventors, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.applicants`, res.applicants, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.current_holder`, res.current_holder, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.filing_date`, res.filing_date, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.grant_date`, res.grant_date, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.verification_source`, res.verification_source, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.verified_at`, res.verified_at, { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.patent_found`, res.patent_found ?? (res.verification_status === 'verified'), { shouldDirty: true })
+      form.setValue(`modules.ipr.entries.${i}.inventor_match`, res.inventor_match ?? (res.association_type === 'inventor'), { shouldDirty: true })
 
       const currentDesc = form.getValues(`modules.ipr.entries.${i}.description`)
       if (!currentDesc && (res.title || res.patent_number)) {
@@ -1561,7 +1604,15 @@ function IPRModule({
           <div key={i} style={{ marginBottom: '1.5rem', borderBottom: '1px dashed var(--border, #cbd5e1)', paddingBottom: '1.25rem' }}>
             <div className="form-row">
               <select
-                {...form.register(`modules.ipr.entries.${i}.type`)}
+                {...form.register(`modules.ipr.entries.${i}.type`, {
+                  onChange: () => {
+                    form.setValue(`modules.ipr.entries.${i}.verification_status`, null, { shouldDirty: true })
+                    form.setValue(`modules.ipr.entries.${i}.association_type`, null, { shouldDirty: true })
+                    form.setValue(`modules.ipr.entries.${i}.matched_name`, null, { shouldDirty: true })
+                    form.setValue(`modules.ipr.entries.${i}.patent_found`, null, { shouldDirty: true })
+                    form.setValue(`modules.ipr.entries.${i}.inventor_match`, null, { shouldDirty: true })
+                  }
+                })}
                 className="input input-w-32"
               >
                 <option value="patent">Patent</option>
@@ -1570,22 +1621,25 @@ function IPRModule({
               </select>
 
               <input
-                placeholder="Description"
+                placeholder={isPatent ? "Patent Title / Description" : "Description"}
                 {...form.register(`modules.ipr.entries.${i}.description`)}
                 className="input input-flex"
               />
 
-              <ProofUpload
-                value={form.watch(`modules.ipr.entries.${i}.proof_file`)}
-                onChange={(url) =>
-                  form.setValue(
-                    `modules.ipr.entries.${i}.proof_file`,
-                    url
-                  )
-                }
-                prefix="ipr"
-                mode="file"
-              />
+              {!isPatent && (
+                <ProofUpload
+                  value={form.watch(`modules.ipr.entries.${i}.proof_file`)}
+                  onChange={(url) =>
+                    form.setValue(
+                      `modules.ipr.entries.${i}.proof_file`,
+                      url,
+                      { shouldDirty: true }
+                    )
+                  }
+                  prefix="ipr"
+                  mode="file"
+                />
+              )}
 
               <button
                 type="button"
@@ -1617,7 +1671,15 @@ function IPRModule({
                     </label>
                     <input
                       placeholder="e.g. IN123456 or IN202041012345"
-                      {...form.register(`modules.ipr.entries.${i}.patent_number`)}
+                      {...form.register(`modules.ipr.entries.${i}.patent_number`, {
+                        onChange: () => {
+                          form.setValue(`modules.ipr.entries.${i}.verification_status`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.association_type`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.matched_name`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.patent_found`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.inventor_match`, null, { shouldDirty: true })
+                        }
+                      })}
                       className="input"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
@@ -1633,7 +1695,15 @@ function IPRModule({
                     </label>
                     <input
                       placeholder="e.g. https://patents.google.com/patent/IN123456B/en"
-                      {...form.register(`modules.ipr.entries.${i}.patent_link`)}
+                      {...form.register(`modules.ipr.entries.${i}.patent_link`, {
+                        onChange: () => {
+                          form.setValue(`modules.ipr.entries.${i}.verification_status`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.association_type`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.matched_name`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.patent_found`, null, { shouldDirty: true })
+                          form.setValue(`modules.ipr.entries.${i}.inventor_match`, null, { shouldDirty: true })
+                        }
+                      })}
                       className="input"
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
@@ -1666,6 +1736,8 @@ function IPRModule({
                   inventors={inventors}
                   applicants={applicants}
                   currentHolder={currentHolder}
+                  patentFound={form.watch(`modules.ipr.entries.${i}.patent_found`)}
+                  inventorMatch={form.watch(`modules.ipr.entries.${i}.inventor_match`)}
                 />
               </div>
             )}

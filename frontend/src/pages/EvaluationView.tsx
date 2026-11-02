@@ -904,18 +904,46 @@ export default function EvaluationView() {
             {m.ipr.entries.map(
               (entry, index) => {
                 const isPatent = entry.type === 'patent'
+                const isPatentEligible =
+                  entry.verification_status === 'verified' &&
+                  entry.patent_found === true &&
+                  entry.inventor_match === true &&
+                  entry.association_type === 'inventor'
+
                 let statusBadgeText = 'Manually reviewed'
                 let statusBadgeStyle = { backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }
 
-                if (entry.verification_status === 'verified') {
-                  statusBadgeText = 'Automatically verified'
-                  statusBadgeStyle = { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
-                } else if (entry.verification_status === 'not_verified') {
-                  statusBadgeText = 'Not verified'
-                  statusBadgeStyle = { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }
-                } else if (entry.verification_status === 'unable_to_verify') {
-                  statusBadgeText = 'Unable to verify'
-                  statusBadgeStyle = { backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }
+                if (isPatent) {
+                  if (isPatentEligible) {
+                    statusBadgeText = 'Verified (Inventor Match - 30 pts)'
+                    statusBadgeStyle = { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
+                  } else if (entry.verification_status === 'verified') {
+                    statusBadgeText = 'Verified (Applicant/Holder Only - 0 pts)'
+                    statusBadgeStyle = { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }
+                  } else if (entry.verification_status === 'not_verified') {
+                    statusBadgeText = 'Not Verified (0 pts)'
+                    statusBadgeStyle = { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }
+                  } else if (entry.verification_status === 'not_found') {
+                    statusBadgeText = 'Not Found (0 pts)'
+                    statusBadgeStyle = { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }
+                  } else if (entry.verification_status === 'unable_to_verify') {
+                    statusBadgeText = 'Unable to Verify (0 pts)'
+                    statusBadgeStyle = { backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }
+                  } else {
+                    statusBadgeText = 'Pending Verification (0 pts)'
+                    statusBadgeStyle = { backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #cbd5e1' }
+                  }
+                } else {
+                  if (entry.verification_status === 'verified') {
+                    statusBadgeText = 'Automatically verified'
+                    statusBadgeStyle = { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
+                  } else if (entry.verification_status === 'not_verified') {
+                    statusBadgeText = 'Not verified'
+                    statusBadgeStyle = { backgroundColor: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }
+                  } else if (entry.verification_status === 'unable_to_verify') {
+                    statusBadgeText = 'Unable to verify'
+                    statusBadgeStyle = { backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }
+                  }
                 }
 
                 const applicantHolder =
@@ -925,7 +953,7 @@ export default function EvaluationView() {
                 if (entry.association_type === 'inventor') {
                   associationDisplay = 'Inventor (Faculty member is listed as an inventor)'
                 } else if (entry.association_type === 'applicant' || entry.association_type === 'holder') {
-                  associationDisplay = 'Applicant / Holder (Faculty member is listed as an applicant/holder)'
+                  associationDisplay = 'Applicant / Holder (Faculty member is listed as an applicant/holder - 0 pts)'
                 }
 
                 return (
@@ -955,7 +983,7 @@ export default function EvaluationView() {
                         </strong>
                       </div>
 
-                      <ProofLink url={entry.proof_file} />
+                      {!isPatent && <ProofLink url={entry.proof_file} />}
                     </div>
 
                     {isPatent && (entry.patent_number || entry.verification_status) && (
@@ -1011,6 +1039,11 @@ export default function EvaluationView() {
 
                           <span style={{ fontWeight: 600, color: '#64748b' }}>Verification Status:</span>
                           <span style={{ fontWeight: 600 }}>{statusBadgeText}</span>
+
+                          <span style={{ fontWeight: 600, color: '#64748b' }}>Points Awarded:</span>
+                          <span style={{ fontWeight: 700, color: isPatentEligible ? '#16a34a' : '#dc2626' }}>
+                            {isPatentEligible ? '30 pts' : '0 pts'}
+                          </span>
                         </div>
                       </div>
                     )}

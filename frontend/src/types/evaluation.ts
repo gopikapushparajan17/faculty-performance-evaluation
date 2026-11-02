@@ -146,6 +146,8 @@ export interface PatentVerificationResult {
   grant_date: string | null
   verification_source: string | null
   verified_at: string | null
+  patent_found?: boolean
+  inventor_match?: boolean
 }
 
 // Module 6: IPR (unlimited)
@@ -168,6 +170,8 @@ export interface IPREntry {
   matched_name?: string | null
   verification_source?: string | null
   verified_at?: string | null
+  patent_found?: boolean | null
+  inventor_match?: boolean | null
 }
 export interface IPRData {
   entries: IPREntry[]

@@ -121,10 +121,22 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
                 break
 
     for e in modules.ipr.entries:
-        if _has_text(e.description):
-            if not _is_file_proof(e.proof_file):
-                missing.append("IPR requires file proof for filled entries.")
+        if e.type == "patent":
+            has_id = _has_text(e.patent_number) or _has_text(e.application_number)
+            has_link = _has_text(e.patent_link)
+            if (_has_text(e.description) or has_id or has_link) and not (has_id or has_link):
+                missing.append("Patent entries require a patent/application number or patent link.")
                 break
+        elif e.type in ("copyright", "trademark"):
+            if _has_text(e.description):
+                if not _is_file_proof(e.proof_file):
+                    missing.append(f"{e.type.capitalize()} requires file proof for filled entries.")
+                    break
+        else:
+            if _has_text(e.description):
+                if not _is_file_proof(e.proof_file):
+                    missing.append("IPR requires file proof for filled entries.")
+                    break
 
     for e in modules.funded_projects.entries:
         if _has_text(e.description) or (e.amount_lakhs and e.amount_lakhs > 0):

@@ -86,6 +86,53 @@ def _is_any_index_verified(verification) -> bool:
     return False
 
 
+def _is_patent_verified_and_inventor_matched(entry) -> bool:
+    """
+    Returns True ONLY when BOTH conditions are satisfied:
+    1. The patent record is successfully found and verified by the patent verification system.
+    2. The faculty member's name successfully matches an inventor listed in the verified patent record.
+    """
+    if isinstance(entry, dict):
+        v_status = entry.get("verification_status")
+        assoc_type = entry.get("association_type")
+        inventor_match = entry.get("inventor_match")
+        patent_found = entry.get("patent_found")
+        ver = entry.get("verification")
+        if isinstance(ver, dict):
+            v_status = v_status or ver.get("verification_status")
+            assoc_type = assoc_type or ver.get("association_type")
+            if inventor_match is None:
+                inventor_match = ver.get("inventor_match")
+            if patent_found is None:
+                patent_found = ver.get("patent_found")
+    else:
+        v_status = getattr(entry, "verification_status", None)
+        assoc_type = getattr(entry, "association_type", None)
+        inventor_match = getattr(entry, "inventor_match", None)
+        patent_found = getattr(entry, "patent_found", None)
+        ver = getattr(entry, "verification", None)
+        if isinstance(ver, dict):
+            v_status = v_status or ver.get("verification_status")
+            assoc_type = assoc_type or ver.get("association_type")
+            if inventor_match is None:
+                inventor_match = ver.get("inventor_match")
+            if patent_found is None:
+                patent_found = ver.get("patent_found")
+
+    # 30 points are awarded ONLY when all four conditions are explicitly true:
+    # 1. verification_status == "verified"
+    # 2. patent_found is True
+    # 3. inventor_match is True
+    # 4. association_type == "inventor"
+    # Missing, None, false, or inconsistent values must always result in False (0 points).
+    return (
+        v_status == "verified"
+        and patent_found is True
+        and inventor_match is True
+        and assoc_type == "inventor"
+    )
+
+
 def _journal_index_points(journal_index) -> int:
     name = getattr(journal_index, "title", None) or getattr(
         journal_index, "value", None
@@ -180,11 +227,12 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
   ipr = 0
   if isinstance(m.ipr, IPRData):
       for e in m.ipr.entries:
-          if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
-              continue
           if e.type == "patent":
-              ipr += 30
+              if _is_patent_verified_and_inventor_matched(e):
+                  ipr += 30
           elif e.type in ("copyright", "trademark"):
+              if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
+                  continue
               ipr += 10
 
   funded = 0

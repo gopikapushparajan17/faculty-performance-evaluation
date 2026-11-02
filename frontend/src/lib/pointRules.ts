@@ -47,11 +47,37 @@ export function booksPoints(entries: { type: string }[]): number {
   return total
 }
 
-// 6. IPR: patent 30, copyright 10, trademark 10
-export function iprPoints(entries: { type: string }[]): number {
+export interface IPRRuleEntry {
+  type: string
+  description?: string
+  proof_file?: string
+  verification_status?: string | null
+  association_type?: string | null
+  inventor_match?: boolean | null
+  patent_found?: boolean | null
+}
+
+export function isPatentVerifiedInventor(e: IPRRuleEntry): boolean {
+  if (e.type !== 'patent') return false
+  return (
+    e.verification_status === 'verified' &&
+    e.patent_found === true &&
+    e.inventor_match === true &&
+    e.association_type === 'inventor'
+  )
+}
+
+// 6. IPR: patent 30 (ONLY if verified AND inventor matched), copyright 10, trademark 10
+export function iprPoints(entries: IPRRuleEntry[]): number {
   return entries.reduce((sum, e) => {
-    if (e.type === 'patent') return sum + 30
-    if (e.type === 'copyright' || e.type === 'trademark') return sum + 10
+    if (e.type === 'patent') {
+      return isPatentVerifiedInventor(e) ? sum + 30 : sum
+    }
+    if (e.type === 'copyright' || e.type === 'trademark') {
+      const hasProof = Boolean(e.proof_file && e.proof_file.trim() && !e.proof_file.startsWith('https://www.scopus.com/'))
+      const hasDesc = Boolean(e.description && e.description.trim())
+      return (hasDesc && hasProof) ? sum + 10 : sum
+    }
     return sum
   }, 0)
 }

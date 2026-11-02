@@ -330,6 +330,10 @@ class TestRegressionAndPersistence:
                         type="patent",
                         description="A patent",
                         proof_file="/uploads/patent.pdf",
+                        verification_status="verified",
+                        association_type="inventor",
+                        patent_found=True,
+                        inventor_match=True,
                     )
                 ]
             ),
