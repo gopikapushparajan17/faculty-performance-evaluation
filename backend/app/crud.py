@@ -699,3 +699,158 @@ def delete_evaluation(eid: str):
 
     finally:
         db.close()
+
+
+import re
+
+def normalize_doi(doi: str | None) -> str | None:
+    if not doi or not isinstance(doi, str):
+        return None
+    d = doi.strip().lower()
+    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d)
+    d = re.sub(r"^doi:\s*", "", d)
+    d = d.strip()
+    return d if d else None
+
+
+def normalize_title(title: str | None) -> str | None:
+    if not title or not isinstance(title, str):
+        return None
+    cleaned = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+    return cleaned if len(cleaned) >= 8 else None
+
+
+def check_journal_duplicate(
+    *args,
+    faculty_id: str | int | None = None,
+    doi: str | None = None,
+    title: str | None = None,
+    current_evaluation_id: str | int | None = None,
+    db=None,
+    **kwargs,
+) -> dict | None:
+    if args:
+        if hasattr(args[0], "query"):
+            db = args[0]
+            if len(args) > 1 and faculty_id is None:
+                faculty_id = args[1]
+            if len(args) > 2 and doi is None:
+                doi = args[2]
+            if len(args) > 3 and title is None:
+                title = args[3]
+            if len(args) > 4 and current_evaluation_id is None:
+                current_evaluation_id = args[4]
+        else:
+            if faculty_id is None:
+                faculty_id = args[0]
+            if len(args) > 1 and doi is None:
+                doi = args[1]
+            if len(args) > 2 and title is None:
+                title = args[2]
+            if len(args) > 3 and current_evaluation_id is None:
+                current_evaluation_id = args[3]
+
+    session = db
+    should_close = False
+    eval_id = current_evaluation_id
+
+    target_doi = normalize_doi(doi)
+    target_title = normalize_title(title)
+
+    if not target_doi and not target_title:
+        return None
+
+    if session is None:
+        try:
+            session = SessionLocal()
+            should_close = True
+        except Exception:
+            return None
+
+    try:
+        query = session.query(EvaluationDB)
+        if faculty_id:
+            try:
+                query = query.filter(EvaluationDB.faculty_id != int(faculty_id))
+            except ValueError:
+                pass
+        if eval_id:
+            try:
+                query = query.filter(EvaluationDB.id != int(eval_id))
+            except ValueError:
+                pass
+
+        rows = query.all()
+        for item in rows:
+            ev = item[0] if isinstance(item, tuple) else item
+            fac = item[1] if isinstance(item, tuple) and len(item) > 1 else None
+
+            # Skip same faculty or same evaluation if matched in mock or unapplied filter
+            if faculty_id is not None and getattr(ev, "faculty_id", None) is not None:
+                try:
+                    if int(ev.faculty_id) == int(faculty_id):
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            if eval_id is not None and getattr(ev, "id", None) is not None:
+                try:
+                    if int(ev.id) == int(eval_id):
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            mods = getattr(ev, "modules", {}) or {}
+            journal = mods.get("journal_index") or {}
+            if not isinstance(journal, dict):
+                continue
+
+            j_doi = (
+                normalize_doi(journal.get("doi"))
+                or normalize_doi((journal.get("verification") or {}).get("doi"))
+            )
+            if not j_doi:
+                link = journal.get("scopus_link") or ""
+                if "doi.org/" in link.lower():
+                    j_doi = normalize_doi(link)
+
+            j_title = (
+                normalize_title(journal.get("title"))
+                or normalize_title(journal.get("value"))
+                or normalize_title((journal.get("verification") or {}).get("title"))
+            )
+
+            matched_by = None
+            if target_doi and j_doi and target_doi == j_doi:
+                matched_by = "doi"
+            elif target_title and j_title and target_title == j_title:
+                matched_by = "title"
+
+            if matched_by:
+                fac_name = "Another Faculty"
+                emp_id = ""
+                if fac:
+                    fac_name = getattr(fac, "name", fac_name)
+                    emp_id = getattr(fac, "employee_id", None) or getattr(fac, "emp_id", "")
+                elif getattr(ev, "faculty_id", None):
+                    try:
+                        fac_obj = session.query(FacultyDB).filter(FacultyDB.id == ev.faculty_id).first()
+                        if fac_obj:
+                            fac_name = getattr(fac_obj, "name", fac_name)
+                            emp_id = getattr(fac_obj, "employee_id", None) or getattr(fac_obj, "emp_id", "")
+                    except Exception:
+                        pass
+
+                return {
+                    "duplicate": True,
+                    "faculty_name": fac_name,
+                    "employee_id": emp_id,
+                    "evaluation_id": getattr(ev, "id", None),
+                    "matched_by": matched_by,
+                }
+
+        return None
+    except Exception:
+        return None
+    finally:
+        if should_close and session is not None:
+            session.close()

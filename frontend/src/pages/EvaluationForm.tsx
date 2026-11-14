@@ -7,18 +7,23 @@ import ModuleCard from '../components/ModuleCard'
 import ProofUpload from '../components/ProofUpload'
 import {
   studentFeedbackPoints,
+  moocCoursesPoints,
+  computeDeptAndInstPoints,
+  journalIndexPoints,
   conferencePoints,
   bookChaptersPoints,
   booksPoints,
   iprPoints,
   fundedPoints,
-  fdpAttendedPoints,
-  talksPoints,
-  deptActivitiesPoints,
-  instActivitiesPoints,
+  phdAwardedPoints,
   fdpOrganizedPoints,
+  talksPoints,
+  mouSignedPoints,
+  hodDeanPoints,
+  industrialVisitsPoints,
+  fdpAttendedPoints,
 } from '../lib/pointRules'
-import { getPositionTitle } from '../lib/positionRules'
+import { getPositionTitle, calculateEligibility } from '../lib/positionRules'
 import type {
   Evaluation,
   EvaluationModules,
@@ -29,17 +34,22 @@ import type {
 
 const defaultModules: EvaluationModules = {
   student_feedback: { percentage: '', points: 0 },
-  journal_index: { value: '', points: 0 },
+  mooc_courses: { entries: [], points: 0 },
+  departmental_activities: { entries: [], points: 0 },
+  institutional_activities: { entries: [], points: 0 },
+  journal_index: { value: '', title: '', scopus_link: '', issn: '', eissn: '', doi: '', declaration_accepted: false, points: 0 },
   conference_articles: { entries: [], points: 0 },
   book_chapters: { entries: [], points: 0 },
   books: { entries: [], points: 0 },
   ipr: { entries: [], points: 0 },
   funded_projects: { entries: [], points: 0 },
-  fdp_attended: { entries: [], points: 0 },
-  talks_delivered: { entries: [], points: 0 },
-  departmental_activities: { entries: [], points: 0 },
-  institutional_activities: { entries: [], points: 0 },
+  phd_awarded: { entries: [], points: 0 },
   fdp_organized: { entries: [], points: 0 },
+  talks_delivered: { entries: [], points: 0 },
+  mou_signed: { entries: [], points: 0 },
+  hod_dean_role: { held_role: false, role_title: '', proof_file: '', points: 0 },
+  industrial_visits: { entries: [], points: 0 },
+  fdp_attended: { entries: [], points: 0 },
 }
 
 const SCOPUS_REGEX = /^https:\/\/www\.scopus\.com\/.*/i
@@ -122,6 +132,7 @@ export default function EvaluationForm() {
   const [selectedPosition, setSelectedPosition] = useState<FacultyPosition | ''>(editId ? 'associate_professor' : '')
   const [setupError, setSetupError] = useState('')
   const [activeTab, setActiveTab] = useState<'part_a' | 'part_b' | 'part_c'>('part_a')
+  const [journalDuplicate, setJournalDuplicate] = useState<{ is_duplicate: boolean; duplicate_by?: { faculty_name: string; employee_id: string } } | null>(null)
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -137,30 +148,63 @@ export default function EvaluationForm() {
   const modules = useWatch({ control: form.control, name: 'modules', defaultValue: defaultModules })
   const facultyPosition = (useWatch({ control: form.control, name: 'faculty_position' }) ?? 'associate_professor') as FacultyPosition
 
+  const checkDuplicate = async (doiVal?: string, titleVal?: string) => {
+    try {
+      const { data } = await api.post('/evaluations/check-journal-duplicate', {
+        faculty_id: form.getValues('faculty_id'),
+        doi: doiVal,
+        title: titleVal,
+        evaluation_id: editId,
+      })
+      setJournalDuplicate(data)
+    } catch {
+      // ignore
+    }
+  }
+
   const computed = useMemo(() => {
     const m = modules ?? defaultModules
 
+    // ========================================================================
+    // TLP: Student Feedback (80-100% = 30, 60-<80% = 20, <60% = 0)
+    // ========================================================================
     const sf = hasText(m.student_feedback?.percentage)
-      ? studentFeedbackPoints(Number(m.student_feedback!.percentage), facultyPosition)
+      ? studentFeedbackPoints(Number(m.student_feedback!.percentage))
       : 0
 
-    
-      const journalName =
-      m.journal_index?.title || m.journal_index?.value
+    // MOOC Courses: 5 each, max 2
+    const moocEntries = m.mooc_courses?.entries ?? []
+    const validMooc = moocEntries.filter((e) => hasText(e.title) && isValidFileProof(e.proof_file))
+    const mooc = moocCoursesPoints(validMooc.length)
 
+    // Departmental (3 each) & Institutional (5 each) - Combined max 2 entries
+    const deptEntries = m.departmental_activities?.entries ?? []
+    const validDept = deptEntries.filter((e) => hasText(e.description) && isValidFileProof(e.proof_file))
+
+    const instEntries = m.institutional_activities?.entries ?? []
+    const validInst = instEntries.filter((e) => hasText(e.description) && isValidFileProof(e.proof_file))
+
+    const { deptPoints: dept, instPoints: inst } = computeDeptAndInstPoints(validDept.length, validInst.length)
+
+    // ========================================================================
+    // RESEARCH
+    // ========================================================================
+    // 1. Journal Index: 30 marks per verified paper
+    const journalName = m.journal_index?.title || m.journal_index?.value
     const hasJournalEvidence =
       hasText(m.journal_index?.scopus_link) ||
       hasText(m.journal_index?.issn) ||
-      hasText(m.journal_index?.eissn)
+      hasText(m.journal_index?.eissn) ||
+      hasText(m.journal_index?.doi)
 
-    const journal =
+    const isJournalVerified =
       hasText(journalName) &&
       hasJournalEvidence &&
       isVerifiedPublication(m.journal_index?.verification)
-        ? 4
-        : 0
 
+    const journal = journalIndexPoints(isJournalVerified)
 
+    // 2. Conference Articles: 5 each, max 2
     const confEntries = m.conference_articles?.entries ?? []
     const validConf = confEntries.filter(
       (e) =>
@@ -170,6 +214,7 @@ export default function EvaluationForm() {
     )
     const conf = conferencePoints(validConf.length)
 
+    // 3. Book Chapters: 5 each, max 2
     const bcEntries = m.book_chapters?.entries ?? []
     const validBc = bcEntries.filter(
       (e) =>
@@ -179,59 +224,95 @@ export default function EvaluationForm() {
     )
     const bc = bookChaptersPoints(validBc.length)
 
+    // 4. Books: 5 each, max 2
     const bookEntries = m.books?.entries ?? []
     const validBooks = bookEntries.filter((e) => hasText(e.title) && isValidFileProof(e.proof_file))
     const books = booksPoints(validBooks)
 
+    // 5. IPR: 5 each, max 2
     const iprEntries = m.ipr?.entries ?? []
     const ipr = iprPoints(iprEntries)
 
+    // 6. Funded Projects: 2-5L = 5, >5L = 30, <2L = 0
     const fundedEntries = m.funded_projects?.entries ?? []
     const validFunded = fundedEntries.filter(
       (e) => (Number(e.amount_lakhs) || 0) > 0 && hasText(e.description) && isValidFileProof(e.proof_file),
     )
     const funded = validFunded.reduce((s, e) => s + fundedPoints(Number(e.amount_lakhs) || 0), 0)
 
-    const fdpEntries = m.fdp_attended?.entries ?? []
-    const validFdp = fdpEntries.filter(
-      (e) => hasText(e.name) && (Number(e.days) || 0) > 0 && isValidFileProof(e.proof_file),
-    )
-    const fdpA = fdpAttendedPoints(validFdp)
+    // 7. PhD Awarded: 5 per student
+    const phdEntries = m.phd_awarded?.entries ?? []
+    const validPhd = phdEntries.filter((e) => hasText(e.student_name) && isValidFileProof(e.proof_file))
+    const phd = phdAwardedPoints(validPhd.length)
 
-    const talksEntries = m.talks_delivered?.entries ?? []
-    const validTalks = talksEntries.filter((e) => hasText(e.title) && isValidFileProof(e.proof_file))
-    const talks = talksPoints(validTalks.length)
-
-    const deptEntries = m.departmental_activities?.entries ?? []
-    const validDept = deptEntries.filter((e) => hasText(e.description) && isValidFileProof(e.proof_file))
-    const dept = deptActivitiesPoints(validDept.length)
-
-    const instEntries = m.institutional_activities?.entries ?? []
-    const validInst = instEntries.filter((e) => hasText(e.description) && isValidFileProof(e.proof_file))
-    const inst = instActivitiesPoints(validInst.length)
-
+    // ========================================================================
+    // OTHERS
+    // ========================================================================
+    // 1. Organising FDPs: 5d = 5, 3-4d = 4, 1-2d = 3
     const fdpOrgEntries = m.fdp_organized?.entries ?? []
     const validFdpOrg = fdpOrgEntries.filter(
       (e) => hasText(e.name) && (Number(e.days) || 0) > 0 && isValidFileProof(e.proof_file),
     )
     const fdpO = fdpOrganizedPoints(validFdpOrg)
 
-    const total = sf + journal + conf + bc + books + ipr + funded + fdpA + talks + dept + inst + fdpO
+    // 2. Invited Talks: 5 each, max 2
+    const talksEntries = m.talks_delivered?.entries ?? []
+    const validTalks = talksEntries.filter((e) => hasText(e.title) && isValidFileProof(e.proof_file))
+    const talks = talksPoints(validTalks.length)
+
+    // 3. MOU Signed: 3 each, max 2
+    const mouEntries = m.mou_signed?.entries ?? []
+    const validMou = mouEntries.filter((e) => hasText(e.organization) && isValidFileProof(e.proof_file))
+    const mou = mouSignedPoints(validMou.length)
+
+    // 4. HOD/Dean: 2 marks
+    const heldHodDean = Boolean(m.hod_dean_role?.held_role)
+    const validHodDeanProof = isValidFileProof(m.hod_dean_role?.proof_file)
+    const hodDean = hodDeanPoints(heldHodDean, validHodDeanProof)
+
+    // 5. Industrial Visits: 2 each, max 2
+    const visitsEntries = m.industrial_visits?.entries ?? []
+    const validVisits = visitsEntries.filter((e) => hasText(e.company_name) && isValidFileProof(e.proof_file))
+    const visits = industrialVisitsPoints(validVisits.length)
+
+    // Legacy FDP Attended (preserved)
+    const fdpEntries = m.fdp_attended?.entries ?? []
+    const validFdp = fdpEntries.filter(
+      (e) => hasText(e.name) && (Number(e.days) || 0) > 0 && isValidFileProof(e.proof_file),
+    )
+    const fdpA = fdpAttendedPoints(validFdp)
+
+    // Raw uncapped totals
+    const tlp = sf + mooc + dept + inst
+    const research = journal + conf + bc + books + ipr + funded + phd
+    const others = fdpO + talks + mou + hodDean + visits + fdpA
+    const total = tlp + research + others
+
+    const eligibility = calculateEligibility(tlp, research, others, facultyPosition)
 
     return {
       student_feedback: sf,
+      mooc_courses: mooc,
+      departmental_activities: dept,
+      institutional_activities: inst,
       journal_index: journal,
       conference_articles: conf,
       book_chapters: bc,
       books,
       ipr,
       funded_projects: funded,
-      fdp_attended: fdpA,
-      talks_delivered: talks,
-      departmental_activities: dept,
-      institutional_activities: inst,
+      phd_awarded: phd,
       fdp_organized: fdpO,
+      talks_delivered: talks,
+      mou_signed: mou,
+      hod_dean_role: hodDean,
+      industrial_visits: visits,
+      fdp_attended: fdpA,
+      tlp,
+      research,
+      others,
       total,
+      eligibility,
     }
   }, [modules, facultyPosition])
 
@@ -290,12 +371,17 @@ export default function EvaluationForm() {
   }, [facultyId, user])
 
   const persistDraft = async (data: FormValues) => {
-    const modules = {
+    const modules: EvaluationModules = {
       ...(data.modules ?? defaultModules),
 
       student_feedback: {
-        ...(data.modules?.student_feedback ?? defaultModules.student_feedback),
+        percentage: data.modules?.student_feedback?.percentage ?? '',
         points: computed.student_feedback,
+      },
+
+      mooc_courses: {
+        entries: data.modules?.mooc_courses?.entries ?? [],
+        points: computed.mooc_courses,
       },
 
       journal_index: {
@@ -304,53 +390,75 @@ export default function EvaluationForm() {
       },
 
       conference_articles: {
-        ...(data.modules?.conference_articles ?? defaultModules.conference_articles),
+        entries: data.modules?.conference_articles?.entries ?? [],
         points: computed.conference_articles,
       },
 
       book_chapters: {
-        ...(data.modules?.book_chapters ?? defaultModules.book_chapters),
+        entries: data.modules?.book_chapters?.entries ?? [],
         points: computed.book_chapters,
       },
 
       books: {
-        ...(data.modules?.books ?? defaultModules.books),
+        entries: data.modules?.books?.entries ?? [],
         points: computed.books,
       },
 
       ipr: {
-        ...(data.modules?.ipr ?? defaultModules.ipr),
+        entries: data.modules?.ipr?.entries ?? [],
         points: computed.ipr,
       },
 
       funded_projects: {
-        ...(data.modules?.funded_projects ?? defaultModules.funded_projects),
+        entries: data.modules?.funded_projects?.entries ?? [],
         points: computed.funded_projects,
       },
 
+      phd_awarded: {
+        entries: data.modules?.phd_awarded?.entries ?? [],
+        points: computed.phd_awarded,
+      },
+
       fdp_attended: {
-        ...(data.modules?.fdp_attended ?? defaultModules.fdp_attended),
+        entries: data.modules?.fdp_attended?.entries ?? [],
         points: computed.fdp_attended,
       },
 
       talks_delivered: {
-        ...(data.modules?.talks_delivered ?? defaultModules.talks_delivered),
+        entries: data.modules?.talks_delivered?.entries ?? [],
         points: computed.talks_delivered,
       },
 
       departmental_activities: {
-        ...(data.modules?.departmental_activities ?? defaultModules.departmental_activities),
+        entries: data.modules?.departmental_activities?.entries ?? [],
         points: computed.departmental_activities,
       },
 
       institutional_activities: {
-        ...(data.modules?.institutional_activities ?? defaultModules.institutional_activities),
+        entries: data.modules?.institutional_activities?.entries ?? [],
         points: computed.institutional_activities,
       },
 
       fdp_organized: {
-        ...(data.modules?.fdp_organized ?? defaultModules.fdp_organized),
+        entries: data.modules?.fdp_organized?.entries ?? [],
         points: computed.fdp_organized,
+      },
+
+      mou_signed: {
+        entries: data.modules?.mou_signed?.entries ?? [],
+        points: computed.mou_signed,
+      },
+
+      hod_dean_role: {
+        held_role: Boolean(data.modules?.hod_dean_role?.held_role),
+        details: data.modules?.hod_dean_role?.details ?? '',
+        proof_file: data.modules?.hod_dean_role?.proof_file ?? '',
+        points: computed.hod_dean_role,
+      },
+
+      industrial_visits: {
+        entries: data.modules?.industrial_visits?.entries ?? [],
+        points: computed.industrial_visits,
       },
     }
 
@@ -581,6 +689,19 @@ export default function EvaluationForm() {
 
   const submitEval = async () => {
     const data = form.getValues()
+    const jm = data.modules?.journal_index
+    const hasJournal = hasText(jm?.title) || hasText(jm?.value) || hasText(jm?.doi) || hasText(jm?.scopus_link)
+    if (hasJournal && !jm?.declaration_accepted) {
+      alert('Please accept the mandatory declaration for the journal publication before submitting.')
+      return
+    }
+
+    if (journalDuplicate?.is_duplicate) {
+      alert(
+        `Cannot submit: Journal publication has already been submitted by ${journalDuplicate.duplicate_by?.faculty_name || 'another faculty member'} (${journalDuplicate.duplicate_by?.employee_id || 'N/A'}).`
+      )
+      return
+    }
 
     if (computed.total <= 0) {
       alert('Grand total must be greater than 0 with required proofs (Scopus links or uploaded files) before submission.')
@@ -806,7 +927,7 @@ export default function EvaluationForm() {
             transition: 'all 0.15s ease',
           }}
         >
-          Part A — TLP
+          Part A — TLP ({computed.tlp} pts)
         </button>
         <button
           type="button"
@@ -825,7 +946,7 @@ export default function EvaluationForm() {
             transition: 'all 0.15s ease',
           }}
         >
-          Part B — Research
+          Part B — Research ({computed.research} pts)
         </button>
         <button
           type="button"
@@ -844,7 +965,7 @@ export default function EvaluationForm() {
             transition: 'all 0.15s ease',
           }}
         >
-          Part C — Others
+          Part C — Others ({computed.others} pts)
         </button>
       </div>
 
@@ -855,37 +976,119 @@ export default function EvaluationForm() {
             <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
               Part A — Teaching, Learning and Professional Development (TLP)
             </h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-              Teaching, Learning and Professional (TLP) development section.
-              Evaluation parameters, scoring criteria, and maximum points for <strong>{positionTitle}</strong> will be configured here in the next stage.
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.6' }}>
+              Teaching, Learning and Professional (TLP) activities for <strong>{positionTitle}</strong>.
             </p>
 
-            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '2rem', backgroundColor: '#f8fafc', textAlign: 'center', marginBottom: '1.5rem' }}>
-              <p style={{ margin: 0, color: 'var(--text)', fontWeight: 500, fontSize: '0.95rem' }}>
-                Part A structural container initialized for {positionTitle}
-              </p>
-              <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                Parameters and point values will be provided in the upcoming stage without altering existing research logic.
-              </p>
+            {/* TLP Category Score & Eligibility Banner */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                padding: '1rem 1.25rem',
+                backgroundColor: '#eff6ff',
+                borderRadius: '8px',
+                border: '1px solid #bfdbfe',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.875rem', color: '#1e40af', fontWeight: 600 }}>
+                  TLP Category Score ({positionTitle})
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e3a8a' }}>
+                    {computed.tlp}
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: '#2563eb' }}>
+                    points (Position Max Ref: {computed.eligibility.tlpMax} | 65% Min Req: {computed.eligibility.tlpThreshold} pts)
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                  *Actual marks are never capped to the category maximum. Displayed marks reflect actual calculations.
+                </div>
+              </div>
+              <span
+                style={{
+                  padding: '0.4rem 0.9rem',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  backgroundColor: computed.eligibility.isTlpEligible ? '#dcfce7' : '#fee2e2',
+                  color: computed.eligibility.isTlpEligible ? '#15803d' : '#b91c1c',
+                  border: `1px solid ${computed.eligibility.isTlpEligible ? '#86efac' : '#fca5a5'}`,
+                }}
+              >
+                {computed.eligibility.isTlpEligible
+                  ? '✓ TLP Eligible (≥ 65%)'
+                  : `✗ TLP Below 65% (${computed.tlp} / ${computed.eligibility.tlpThreshold} pts)`}
+              </span>
             </div>
 
-        {/* Module 1: Student Feedback */}
-        <ModuleCard title="1. Student Feedback" points={computed.student_feedback} defaultOpen>
-          <p className="form-label" style={{ marginBottom: '0.5rem' }}>
-            {facultyPosition === 'assistant_professor' && '≥85% → 20 pts, 70–84% → 15, 60–69% → 12, <60% → 10'}
-            {facultyPosition === 'associate_professor' && '≥85% → 15 pts, 70–84% → 10, 60–69% → 7, <60% → 5'}
-            {facultyPosition === 'professor' && '≥85% → 10 pts, 70–84% → 8, 60–69% → 5, <60% → 3'}
-          </p>
+            {/* Module 1: Student Feedback */}
+            <ModuleCard
+              title="1. Student Feedback (80–100% = 30 pts, 60–below 80% = 20 pts, below 60% = 0 pts)"
+              points={computed.student_feedback}
+              defaultOpen
+            >
+              <p className="form-label" style={{ marginBottom: '0.5rem' }}>
+                Select feedback percentage:
+              </p>
 
-          <select {...form.register('modules.student_feedback.percentage')} className="input input-w-40">
-            <option value="">Select %</option>
-            {['90', '85', '80', '75', '70', '65', '60', '55', '50'].map((p) => (
-              <option key={p} value={p}>{p}%</option>
-            ))}
-          </select>
-        </ModuleCard>
+              <select {...form.register('modules.student_feedback.percentage')} className="input input-w-40">
+                <option value="">Select %</option>
+                {['100', '95', '90', '85', '80', '75', '70', '65', '60', '55', '50', '40'].map((p) => (
+                  <option key={p} value={p}>{p}%</option>
+                ))}
+              </select>
+            </ModuleCard>
 
-        
+            {/* Module 2: MOOC Courses */}
+            <MOOCCoursesModule form={form} points={computed.mooc_courses} />
+
+            {/* Combined Activities Notification Banner */}
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                marginBottom: '1rem',
+                fontSize: '0.875rem',
+                color: '#334155',
+              }}
+            >
+              <strong>Activities Combined Maximum:</strong> Departmental (3 pts each) + Institutional (5 pts each) combined maximum = <strong>2 entries total</strong> (e.g. 2 departmental, 2 institutional, or 1 of each).
+              {((form.watch('modules.departmental_activities.entries')?.length ?? 0) +
+                (form.watch('modules.institutional_activities.entries')?.length ?? 0)) >= 2 && (
+                <div style={{ color: '#b45309', fontWeight: 600, marginTop: '0.25rem' }}>
+                  ⚠ Combined maximum of 2 entries reached. Remove an entry if you wish to add from the other activity.
+                </div>
+              )}
+            </div>
+
+            {/* Module 3: Departmental Activities */}
+            <DeptActivitiesModule
+              form={form}
+              points={computed.departmental_activities}
+              canAdd={
+                ((form.watch('modules.departmental_activities.entries')?.length ?? 0) +
+                  (form.watch('modules.institutional_activities.entries')?.length ?? 0)) < 2
+              }
+            />
+
+            {/* Module 4: Institutional Activities */}
+            <InstActivitiesModule
+              form={form}
+              points={computed.institutional_activities}
+              canAdd={
+                ((form.watch('modules.departmental_activities.entries')?.length ?? 0) +
+                  (form.watch('modules.institutional_activities.entries')?.length ?? 0)) < 2
+              }
+            />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
@@ -905,18 +1108,76 @@ export default function EvaluationForm() {
             <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
               Part B — Research and Academic Contributions
             </h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-              Research publications, conference proceedings, book chapters, and patents.
-              All existing external database verification engines (Crossref, Scopus, Web of Science, EPO OPS, Google Patents) and scoring logic remain authoritative and intact.
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.6' }}>
+              Research publications, conference proceedings, book chapters, books, IPR, funded projects, and PhD awards for <strong>{positionTitle}</strong>.
             </p>
 
-        {/* Module 2: Journal Index */}
-        <ModuleCard title="2. Journal Index" points={computed.journal_index} defaultOpen>
+            {/* Research Category Score & Eligibility Banner */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                padding: '1rem 1.25rem',
+                backgroundColor: '#f5f3ff',
+                borderRadius: '8px',
+                border: '1px solid #ddd6fe',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.875rem', color: '#6d28d9', fontWeight: 600 }}>
+                  Research Category Score ({positionTitle})
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4c1d95' }}>
+                    {computed.research}
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: '#7c3aed' }}>
+                    points (Position Max Ref: {computed.eligibility.researchMax} | 65% Min Req: {computed.eligibility.researchThreshold} pts)
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                  *Actual marks are never capped to the category maximum. Displayed marks reflect actual calculations.
+                </div>
+              </div>
+              <span
+                style={{
+                  padding: '0.4rem 0.9rem',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  backgroundColor: computed.eligibility.isResearchEligible ? '#dcfce7' : '#fee2e2',
+                  color: computed.eligibility.isResearchEligible ? '#15803d' : '#b91c1c',
+                  border: `1px solid ${computed.eligibility.isResearchEligible ? '#86efac' : '#fca5a5'}`,
+                }}
+              >
+                {computed.eligibility.isResearchEligible
+                  ? '✓ Research Eligible (≥ 65%)'
+                  : `✗ Research Below 65% (${computed.research} / ${computed.eligibility.researchThreshold} pts)`}
+              </span>
+            </div>
+
+        {/* Module 1: Journal Index */}
+        <ModuleCard title="1. Journal Index (30 marks per verified paper)" points={computed.journal_index} defaultOpen>
           <div className="form-row">
             <input
               type="text"
               placeholder="Paper Title"
-              {...form.register('modules.journal_index.title')}
+              {...form.register('modules.journal_index.title', {
+                onChange: (e) => checkDuplicate(form.getValues('modules.journal_index.doi'), e.target.value)
+              })}
+              className="input input-flex"
+            />
+
+            <input
+              type="text"
+              placeholder="DOI (e.g. 10.1016/j.jss.2023.111876)"
+              {...form.register('modules.journal_index.doi', {
+                onChange: (e) => checkDuplicate(e.target.value, form.getValues('modules.journal_index.title'))
+              })}
               className="input input-flex"
             />
 
@@ -960,6 +1221,7 @@ export default function EvaluationForm() {
                 verificationLoading ||
                 !(
                   form.watch('modules.journal_index.scopus_link')?.trim() ||
+                  form.watch('modules.journal_index.doi')?.trim() ||
                   (
                     form.watch('modules.journal_index.title')?.trim() &&
                     (
@@ -978,17 +1240,63 @@ export default function EvaluationForm() {
               type="button"
               onClick={() => {
                 form.setValue('modules.journal_index.title', '')
+                form.setValue('modules.journal_index.doi', '')
                 form.setValue('modules.journal_index.scopus_link', '')
                 form.setValue('modules.journal_index.issn', '')
                 form.setValue('modules.journal_index.eissn', '')
                 form.setValue('modules.journal_index.value', '')
                 form.setValue('modules.journal_index.verification', undefined)
+                form.setValue('modules.journal_index.declaration_accepted', false)
+                setJournalDuplicate(null)
                 setVerificationError('')
               }}
               className="remove-link"
             >
               Remove
             </button>
+          </div>
+
+          {/* Duplicate Paper Detection Alert */}
+          {journalDuplicate?.is_duplicate && (
+            <div
+              style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #f87171',
+                borderRadius: '6px',
+                color: '#991b1b',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+              }}
+            >
+              ⚠ <strong>Duplicate Publication Detected:</strong> This publication has already been submitted for evaluation by{' '}
+              <strong>{journalDuplicate.duplicate_by?.faculty_name || 'another faculty member'}</strong>{' '}
+              (Employee ID: <strong>{journalDuplicate.duplicate_by?.employee_id || 'N/A'}</strong>).
+              Duplicate submissions across faculty accounts are not permitted.
+            </div>
+          )}
+
+          {/* Mandatory Declaration Checkbox */}
+          <div
+            style={{
+              marginTop: '0.75rem',
+              padding: '0.875rem 1rem',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                {...form.register('modules.journal_index.declaration_accepted')}
+                style={{ marginTop: '0.2rem', width: '1.15rem', height: '1.15rem', accentColor: 'var(--secondary)' }}
+              />
+              <span style={{ fontSize: '0.875rem', color: '#1e293b', lineHeight: '1.5' }}>
+                <strong>Mandatory Declaration:</strong> "I hereby declare that, to the best of my knowledge, this publication has not been submitted by another faculty member for evaluation. I accept responsibility for the accuracy of this declaration."
+              </span>
+            </label>
           </div>
 
 
@@ -1244,7 +1552,7 @@ export default function EvaluationForm() {
 
         </ModuleCard>
 
-        {/* Module 3: Conference Articles - max 4, 4 pts each */}
+        {/* Module 2: Conference Articles - max 2, 5 pts each */}
         <ConferenceArticlesModule
           form={form}
           points={computed.conference_articles}
@@ -1254,7 +1562,7 @@ export default function EvaluationForm() {
           setVerificationError={setConferenceVerificationError}
         />
 
-        {/* Module 4: Book Chapters - max 4, 6 pts each */}
+        {/* Module 3: Book Chapters - max 2, 5 pts each */}
         <BookChaptersModule
           form={form}
           points={computed.book_chapters}
@@ -1264,21 +1572,17 @@ export default function EvaluationForm() {
           setVerificationError={setBookChapterVerificationError}
         />
 
-        {/* Module 5: Books - max 3, authored 20 / edited 10 */}
+        {/* Module 4: Books - max 2, 5 pts each */}
         <BooksModule form={form} points={computed.books} />
 
-        {/* Module 6: IPR */}
+        {/* Module 5: IPR - max 2, 5 pts each */}
         <IPRModule form={form} points={computed.ipr} />
 
-        {/* Module 7: Funded Projects */}
+        {/* Module 6: Funded Projects - Above 5L = 30, 2-5L = 5, Below 2L = 0 */}
         <FundedProjectsModule form={form} points={computed.funded_projects} />
 
-
-            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '1.5rem', backgroundColor: '#f8fafc', textAlign: 'center', marginTop: '1.5rem' }}>
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                Extensible structural container for additional future research parameters.
-              </p>
-            </div>
+        {/* Module 7: PhD Awarded - 5 pts per student */}
+        <PhDAwardedModule form={form} points={computed.phd_awarded} />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -1305,35 +1609,73 @@ export default function EvaluationForm() {
             <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
               Part C — Others
             </h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-              Other academic, institutional, departmental, extension, and professional activities.
-              Evaluation parameters and point rules for <strong>{positionTitle}</strong> will be configured in the next stage.
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.6' }}>
+              Other academic, institutional, departmental, extension, and professional activities for <strong>{positionTitle}</strong>.
             </p>
 
-            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '1.75rem', backgroundColor: '#f8fafc', textAlign: 'center', marginBottom: '1.5rem' }}>
-              <p style={{ margin: 0, color: 'var(--text)', fontWeight: 500, fontSize: '0.95rem' }}>
-                Part C structural container initialized for {positionTitle}
-              </p>
-              <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                Parameters and point values will be provided in the upcoming stage.
-              </p>
+            {/* Others Category Score Banner */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                padding: '1rem 1.25rem',
+                backgroundColor: '#ecfdf5',
+                borderRadius: '8px',
+                border: '1px solid #a7f3d0',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '0.875rem', color: '#047857', fontWeight: 600 }}>
+                  Others Category Score ({positionTitle})
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#065f46' }}>
+                    {computed.others}
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: '#059669' }}>
+                    points (Position Ref Max: {computed.eligibility.othersMax})
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                  *No minimum eligibility requirement. Displayed marks reflect actual uncapped calculations.
+                </div>
+              </div>
+              <span
+                style={{
+                  padding: '0.4rem 0.9rem',
+                  borderRadius: '9999px',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  backgroundColor: '#dcfce7',
+                  color: '#15803d',
+                  border: '1px solid #86efac',
+                }}
+              >
+                ✓ No Minimum Required
+              </span>
             </div>
 
-        {/* Module 8: FDP Attended - max 2 */}
-        <FDPAttendedModule form={form} points={computed.fdp_attended} />
+            {/* Module 1: FDP Organized - 5d=5, 3-4d=4, 1-2d=3 */}
+            <FDPOrganizedModule form={form} points={computed.fdp_organized} />
 
-        {/* Module 9: Talks - max 2, 5 pts each */}
-        <TalksModule form={form} points={computed.talks_delivered} />
+            {/* Module 2: Invited Talks / Resource Person - max 2, 5 pts each */}
+            <TalksModule form={form} points={computed.talks_delivered} />
 
-        {/* Module 10: Departmental - max 3, 3 pts each */}
-        <DeptActivitiesModule form={form} points={computed.departmental_activities} />
+            {/* Module 3: MOU Signed - max 2, 3 pts each */}
+            <MOUSignedModule form={form} points={computed.mou_signed} />
 
-        {/* Module 11: Institutional - max 3, 5 pts each */}
-        <InstActivitiesModule form={form} points={computed.institutional_activities} />
+            {/* Module 4: Role as HOD / Dean - 2 marks */}
+            <HODDeanModule form={form} points={computed.hod_dean_role} />
 
-        {/* Module 12: FDP Organized - max 2 */}
-        <FDPOrganizedModule form={form} points={computed.fdp_organized} />
+            {/* Module 5: Organising Industrial Visits - max 2, 2 pts each */}
+            <IndustrialVisitsModule form={form} points={computed.industrial_visits} />
 
+            {/* Module 6: FDP Attended (preserved) */}
+            <FDPAttendedModule form={form} points={computed.fdp_attended} />
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
@@ -1347,8 +1689,97 @@ export default function EvaluationForm() {
           </div>
         </div>
 
-        <div className="total-box">
-          <p>Grand Total: {computed.total} points</p>
+        {/* GRAND TOTAL & ELIGIBILITY SUMMARY CARD */}
+        <div
+          className="card"
+          style={{
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            backgroundColor: '#f8fafc',
+            border: '2px solid #e2e8f0',
+            borderRadius: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                Total Appraisal Score
+              </span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  {computed.total}
+                </span>
+                <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>points (raw uncapped)</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                Overall Eligibility Status
+              </span>
+              <span
+                style={{
+                  padding: '0.45rem 1rem',
+                  borderRadius: '9999px',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  display: 'inline-block',
+                  backgroundColor: computed.eligibility.isOverallEligible ? '#dcfce7' : '#fee2e2',
+                  color: computed.eligibility.isOverallEligible ? '#15803d' : '#b91c1c',
+                  border: `1px solid ${computed.eligibility.isOverallEligible ? '#86efac' : '#fca5a5'}`,
+                }}
+              >
+                {computed.eligibility.isOverallEligible ? 'ELIGIBLE' : 'NOT ELIGIBLE'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            {/* TLP Summary Box */}
+            <div style={{ padding: '0.875rem 1rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>PART A — TLP</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#1e3a8a', margin: '0.2rem 0' }}>
+                {computed.tlp} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Max Ref: {computed.eligibility.tlpMax} | Min (65%): {computed.eligibility.tlpThreshold}
+              </div>
+              <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: computed.eligibility.isTlpEligible ? '#15803d' : '#b91c1c' }}>
+                {computed.eligibility.isTlpEligible ? '✓ Eligible' : '✗ Below 65%'}
+              </div>
+            </div>
+
+            {/* Research Summary Box */}
+            <div style={{ padding: '0.875rem 1rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>PART B — RESEARCH</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#4c1d95', margin: '0.2rem 0' }}>
+                {computed.research} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Max Ref: {computed.eligibility.researchMax} | Min (65%): {computed.eligibility.researchThreshold}
+              </div>
+              <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: computed.eligibility.isResearchEligible ? '#15803d' : '#b91c1c' }}>
+                {computed.eligibility.isResearchEligible ? '✓ Eligible' : '✗ Below 65%'}
+              </div>
+            </div>
+
+            {/* Others Summary Box */}
+            <div style={{ padding: '0.875rem 1rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>PART C — OTHERS</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#047857', margin: '0.2rem 0' }}>
+                {computed.others} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Position Ref Max: {computed.eligibility.othersMax}
+              </div>
+              <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#047857' }}>
+                ✓ No minimum requirement
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+            Note: Position-wise category maximums are eligibility references, not scoring caps. Actual raw marks are never capped, normalized, or scaled.
+          </div>
         </div>
 
         <div className="form-actions">
@@ -1375,6 +1806,64 @@ export default function EvaluationForm() {
   )
 }
 
+function MOOCCoursesModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.mooc_courses.entries',
+  })
+
+  return (
+    <ModuleCard
+      title="2. MOOC Courses (max 2, 5 pts each)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => (
+        <div key={i} className="form-row">
+          <input
+            placeholder="Course Title"
+            {...form.register(`modules.mooc_courses.entries.${i}.title`)}
+            className="input input-flex"
+          />
+
+          <ProofUpload
+            value={form.watch(`modules.mooc_courses.entries.${i}.proof_file`)}
+            onChange={(url) =>
+              form.setValue(`modules.mooc_courses.entries.${i}.proof_file`, url)
+            }
+            prefix="mooc_courses"
+            mode="file"
+          />
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ title: '' })}
+          className="add-link"
+        >
+          + Add MOOC Course
+        </button>
+      )}
+    </ModuleCard>
+  )
+}
+
 function ConferenceArticlesModule({
   form,
   points,
@@ -1397,7 +1886,7 @@ function ConferenceArticlesModule({
 
   return (
     <ModuleCard
-      title="3. Conference Articles (max 4, 4 pts each)"
+      title="2. Conference Articles (max 2, 5 pts each)"
       points={points}
       defaultOpen
     >
@@ -1483,13 +1972,13 @@ function ConferenceArticlesModule({
         )
       })}
 
-      {fields.length < 4 && (
+      {fields.length < 2 && (
         <button
           type="button"
           onClick={() => append({ title: '' })}
           className="add-link"
         >
-          + Add
+          + Add Conference Article
         </button>
       )}
     </ModuleCard>
@@ -1518,7 +2007,7 @@ function BookChaptersModule({
 
   return (
     <ModuleCard
-      title="4. Book Chapters (max 4, 6 pts each)"
+      title="3. Book Chapters (max 2, 5 pts each)"
       points={points}
       defaultOpen
     >
@@ -1604,13 +2093,13 @@ function BookChaptersModule({
         )
       })}
 
-      {fields.length < 4 && (
+      {fields.length < 2 && (
         <button
           type="button"
           onClick={() => append({ title: '' })}
           className="add-link"
         >
-          + Add
+          + Add Book Chapter
         </button>
       )}
     </ModuleCard>
@@ -1631,7 +2120,7 @@ function BooksModule({
 
   return (
     <ModuleCard
-      title="5. Authored / Edited Books (max 3, Authored 20 / Edited 10 pts)"
+      title="4. Authored / Edited Books (max 2, 5 pts each)"
       points={points}
       defaultOpen
     >
@@ -1675,13 +2164,13 @@ function BooksModule({
         </div>
       ))}
 
-      {fields.length < 3 && (
+      {fields.length < 2 && (
         <button
           type="button"
           onClick={() => append({ title: '', type: 'authored' })}
           className="add-link"
         >
-          + Add
+          + Add Book
         </button>
       )}
     </ModuleCard>
@@ -1714,7 +2203,7 @@ function PatentVerificationResultDisplay({
   if (!verificationStatus) {
     return (
       <div style={{ marginTop: '0.75rem', fontSize: '13px', color: '#64748b', fontStyle: 'italic' }}>
-        Status: Patent verification pending. Enter patent number/link and click "Verify Patent" to verify ownership and award points (30 pts for verified inventor).
+        Status: Patent verification pending. Enter patent number/link and click "Verify Patent" to verify ownership and award points (5 pts for verified inventor).
       </div>
     )
   }
@@ -1809,7 +2298,7 @@ function PatentVerificationResultDisplay({
             color: isEligible ? '#15803d' : '#b91c1c',
           }}
         >
-          {isEligible ? '30 pts' : '0 pts'}
+          {isEligible ? '5 pts' : '0 pts'}
         </span>
       </div>
 
@@ -1837,7 +2326,7 @@ function PatentVerificationResultDisplay({
               <span>✓</span> Faculty Name Matched as Inventor
             </div>
             <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-              Faculty member is verified as a listed inventor. 30 points awarded.
+              Faculty member is verified as a listed inventor. 5 points awarded.
             </div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>
               Verification Status: VERIFIED (INVENTOR MATCH)
@@ -1849,7 +2338,7 @@ function PatentVerificationResultDisplay({
               <span>⚠</span> Faculty listed as Applicant/Holder only (Not Inventor)
             </div>
             <div style={{ fontSize: '13px', color: '#9a3412', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-              Faculty member is listed as an applicant or holder. Patent points (30 pts) require the faculty member to be an inventor.
+              Faculty member is listed as an applicant or holder. Patent points (5 pts) require the faculty member to be an inventor.
             </div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c' }}>
               Verification Status: VERIFIED (NO INVENTOR MATCH - 0 PTS)
@@ -1940,7 +2429,7 @@ function IPRModule({
 
   return (
     <ModuleCard
-      title="6. IPR (Patent 30, Copyright 10, Trademark 10 pts)"
+      title="5. IPR — Patents / Copyright / Trademark (max 2, 5 pts each)"
       points={points}
       defaultOpen
     >
@@ -2101,13 +2590,15 @@ function IPRModule({
         )
       })}
 
-      <button
-        type="button"
-        onClick={() => append({ type: 'patent', description: '' })}
-        className="add-link"
-      >
-        + Add
-      </button>
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ type: 'patent', description: '' })}
+          className="add-link"
+        >
+          + Add IPR Entry
+        </button>
+      )}
     </ModuleCard>
   )
 }
@@ -2126,7 +2617,7 @@ function FundedProjectsModule({
 
   return (
     <ModuleCard
-      title="7. Funded Projects / Consultancy (Lakhs: >1→5, 1-2→10, 2-3→12, 3-5→15, >5→20)"
+      title="6. Funded Projects / Consultancy (Above ₹5L = 30 pts, ₹2–5L = 5 pts, Below ₹2L = 0 pts)"
       points={points}
       defaultOpen
     >
@@ -2186,6 +2677,68 @@ function FundedProjectsModule({
   )
 }
 
+function PhDAwardedModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.phd_awarded.entries',
+  })
+
+  return (
+    <ModuleCard
+      title="7. PhD Awarded (5 pts per student, PDF proof required)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => (
+        <div key={i} className="form-row">
+          <input
+            placeholder="Student Name"
+            {...form.register(`modules.phd_awarded.entries.${i}.student_name`)}
+            className="input input-w-48"
+          />
+
+          <input
+            placeholder="Thesis Title / Details"
+            {...form.register(`modules.phd_awarded.entries.${i}.thesis_title`)}
+            className="input input-flex"
+          />
+
+          <ProofUpload
+            value={form.watch(`modules.phd_awarded.entries.${i}.proof_file`)}
+            onChange={(url) =>
+              form.setValue(`modules.phd_awarded.entries.${i}.proof_file`, url)
+            }
+            prefix="phd_awarded"
+            mode="file"
+          />
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => append({ student_name: '', thesis_title: '' })}
+        className="add-link"
+      >
+        + Add PhD Student
+      </button>
+    </ModuleCard>
+  )
+}
+
 function FDPAttendedModule({
   form,
   points
@@ -2200,7 +2753,7 @@ function FDPAttendedModule({
 
   return (
     <ModuleCard
-      title="8. FDP / Workshops Attended (max 2; 3d→3, 5d→5, 2w→10 pts)"
+      title="6. FDP / Workshops Attended (max 2; 3d→3, 5d→5, 2w→10 pts)"
       points={points}
       defaultOpen
     >
@@ -2277,7 +2830,7 @@ function TalksModule({
 
   return (
     <ModuleCard
-      title="9. Talks Delivered (max 2, 5 pts each)"
+      title="2. Invited Talks / Resource Person (max 2, 5 pts each)"
       points={points}
       defaultOpen
     >
@@ -2323,7 +2876,7 @@ function TalksModule({
           onClick={() => append({ title: '' })}
           className="add-link"
         >
-          + Add
+          + Add Invited Talk
         </button>
       )}
     </ModuleCard>
@@ -2332,10 +2885,12 @@ function TalksModule({
 
 function DeptActivitiesModule({
   form,
-  points
+  points,
+  canAdd = true,
 }: {
   form: ReturnType<typeof useForm<FormValues>>
   points: number
+  canAdd?: boolean
 }) {
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -2344,7 +2899,7 @@ function DeptActivitiesModule({
 
   return (
     <ModuleCard
-      title="10. Departmental Activities (max 3, 3 pts each)"
+      title="3. Departmental Activities (3 pts each; combined max with Institutional = 2 entries)"
       points={points}
       defaultOpen
     >
@@ -2384,13 +2939,13 @@ function DeptActivitiesModule({
         </div>
       ))}
 
-      {fields.length < 3 && (
+      {fields.length < 2 && canAdd && (
         <button
           type="button"
           onClick={() => append({ description: '' })}
           className="add-link"
         >
-          + Add
+          + Add Departmental Activity
         </button>
       )}
     </ModuleCard>
@@ -2399,10 +2954,12 @@ function DeptActivitiesModule({
 
 function InstActivitiesModule({
   form,
-  points
+  points,
+  canAdd = true,
 }: {
   form: ReturnType<typeof useForm<FormValues>>
   points: number
+  canAdd?: boolean
 }) {
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -2411,7 +2968,7 @@ function InstActivitiesModule({
 
   return (
     <ModuleCard
-      title="11. Institutional Activities (max 3, 5 pts each)"
+      title="4. Institutional Activities (5 pts each; combined max with Departmental = 2 entries)"
       points={points}
       defaultOpen
     >
@@ -2451,13 +3008,13 @@ function InstActivitiesModule({
         </div>
       ))}
 
-      {fields.length < 3 && (
+      {fields.length < 2 && canAdd && (
         <button
           type="button"
           onClick={() => append({ description: '' })}
           className="add-link"
         >
-          + Add
+          + Add Institutional Activity
         </button>
       )}
     </ModuleCard>
@@ -2478,7 +3035,7 @@ function FDPOrganizedModule({
 
   return (
     <ModuleCard
-      title="12. FDP / Workshops / Conferences Organized (max 2; 1d→2, 3d→5, 5d→10 pts)"
+      title="1. FDP / Workshops / Conferences Organised (5 days = 5 pts, 3–4 days = 4 pts, 1–2 days = 3 pts)"
       points={points}
       defaultOpen
     >
@@ -2534,7 +3091,182 @@ function FDPOrganizedModule({
           onClick={() => append({ name: '', days: 0 })}
           className="add-link"
         >
-          + Add
+          + Add Organised Event
+        </button>
+      )}
+    </ModuleCard>
+  )
+}
+
+function MOUSignedModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.mou_signed.entries',
+  })
+
+  return (
+    <ModuleCard
+      title="3. MOU Signed (max 2, 3 pts each)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => (
+        <div key={i} className="form-row">
+          <input
+            placeholder="Organization Name"
+            {...form.register(`modules.mou_signed.entries.${i}.organization`)}
+            className="input input-w-48"
+          />
+
+          <input
+            placeholder="Date / Details"
+            {...form.register(`modules.mou_signed.entries.${i}.details`)}
+            className="input input-flex"
+          />
+
+          <ProofUpload
+            value={form.watch(`modules.mou_signed.entries.${i}.proof_file`)}
+            onChange={(url) =>
+              form.setValue(`modules.mou_signed.entries.${i}.proof_file`, url)
+            }
+            prefix="mou_signed"
+            mode="file"
+          />
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ organization: '', details: '' })}
+          className="add-link"
+        >
+          + Add MOU
+        </button>
+      )}
+    </ModuleCard>
+  )
+}
+
+function HODDeanModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  return (
+    <ModuleCard
+      title="4. Role as HOD / Dean (2 marks, proof required)"
+      points={points}
+      defaultOpen
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            {...form.register('modules.hod_dean_role.held_role')}
+            style={{ width: '1.15rem', height: '1.15rem', accentColor: 'var(--secondary)' }}
+          />
+          <span style={{ fontWeight: 500, fontSize: '0.95rem' }}>
+            I have served as HOD or Dean during this evaluation period (2 marks)
+          </span>
+        </label>
+
+        {form.watch('modules.hod_dean_role.held_role') && (
+          <div className="form-row" style={{ marginTop: '0.5rem' }}>
+            <input
+              placeholder="Designation & Department / Details"
+              {...form.register('modules.hod_dean_role.details')}
+              className="input input-flex"
+            />
+            <ProofUpload
+              value={form.watch('modules.hod_dean_role.proof_file')}
+              onChange={(url) =>
+                form.setValue('modules.hod_dean_role.proof_file', url)
+              }
+              prefix="hod_dean_role"
+              mode="file"
+            />
+          </div>
+        )}
+      </div>
+    </ModuleCard>
+  )
+}
+
+function IndustrialVisitsModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'modules.industrial_visits.entries',
+  })
+
+  return (
+    <ModuleCard
+      title="5. Organising Industrial Visits (max 2, 2 pts each)"
+      points={points}
+      defaultOpen
+    >
+      {fields.map((_, i) => (
+        <div key={i} className="form-row">
+          <input
+            placeholder="Company / Industry Name"
+            {...form.register(`modules.industrial_visits.entries.${i}.company_name`)}
+            className="input input-w-48"
+          />
+
+          <input
+            placeholder="Date / Semester / Details"
+            {...form.register(`modules.industrial_visits.entries.${i}.details`)}
+            className="input input-flex"
+          />
+
+          <ProofUpload
+            value={form.watch(`modules.industrial_visits.entries.${i}.proof_file`)}
+            onChange={(url) =>
+              form.setValue(`modules.industrial_visits.entries.${i}.proof_file`, url)
+            }
+            prefix="industrial_visits"
+            mode="file"
+          />
+
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="remove-link"
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      {fields.length < 2 && (
+        <button
+          type="button"
+          onClick={() => append({ company_name: '', details: '' })}
+          className="add-link"
+        >
+          + Add Industrial Visit
         </button>
       )}
     </ModuleCard>

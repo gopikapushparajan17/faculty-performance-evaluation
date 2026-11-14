@@ -15,6 +15,7 @@ from app.crud import (
     delete_evaluation,
     get_evaluation_by_faculty_and_year,
     get_faculty_by_user_id,
+    check_journal_duplicate,
 )
 
 from app.deps import get_current_user, require_role
@@ -59,11 +60,44 @@ def _is_verified_indexed_publication(verification) -> bool:
     return _author_verified(verification) and _is_any_index_verified(verification)
 
 
-def _validate_modules_for_submit(modules: EvaluationModules) -> None:
+def _validate_modules_for_submit(
+    modules: EvaluationModules,
+    faculty_id: str | None = None,
+    evaluation_id: str | None = None,
+) -> None:
     missing: list[str] = []
 
+    # Combined max 2 for Departmental + Institutional
+    dept_entries = getattr(modules.departmental_activities, "entries", [])
+    inst_entries = getattr(modules.institutional_activities, "entries", [])
+    if len(dept_entries) + len(inst_entries) > 2:
+        missing.append("Departmental and Institutional Activities combined maximum of 2 entries cannot be exceeded.")
+
+    if len(getattr(modules.conference_articles, "entries", [])) > 2:
+        missing.append("Conference Articles cannot exceed 2 entries.")
+
+    if len(getattr(modules.book_chapters, "entries", [])) > 2:
+        missing.append("Book Chapters cannot exceed 2 entries.")
+
+    if len(getattr(modules.books, "entries", [])) > 2:
+        missing.append("Authored/Edited Books cannot exceed 2 entries.")
+
+    if len(getattr(modules.ipr, "entries", [])) > 2:
+        missing.append("IPR cannot exceed 2 entries.")
+
+    if getattr(modules, "mooc_courses", None) and len(modules.mooc_courses.entries) > 2:
+        missing.append("MOOC Courses cannot exceed 2 entries.")
+
+    if len(getattr(modules.talks_delivered, "entries", [])) > 2:
+        missing.append("Invited Talks/Resource Person cannot exceed 2 entries.")
+
+    if getattr(modules, "mou_signed", None) and len(modules.mou_signed.entries) > 2:
+        missing.append("MOU Signed cannot exceed 2 entries.")
+
+    if getattr(modules, "industrial_visits", None) and len(modules.industrial_visits.entries) > 2:
+        missing.append("Organising Industrial Visits cannot exceed 2 entries.")
+
     # Scopus required only for: Journal Index, Conference Articles, Book Chapters
-    
     journal = modules.journal_index
 
     if _has_text(journal.title) or _has_text(journal.value):
@@ -88,6 +122,23 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
         ):
             missing.append(
                 "Journal Index requires a publication link or a verified paper title with ISSN/e-ISSN."
+            )
+
+        # Mandatory declaration check
+        if not getattr(journal, "declaration_accepted", False):
+            missing.append(
+                "You must confirm the mandatory declaration for Journal Index before submission."
+            )
+
+        # Backend duplicate check across faculty
+        doi = getattr(journal, "doi", None) or verification.get("doi")
+        if not doi and _has_text(journal.scopus_link) and "doi.org/" in journal.scopus_link.lower():
+            doi = journal.scopus_link
+        title = journal.title or journal.value
+        dup = check_journal_duplicate(faculty_id, doi, title, evaluation_id)
+        if dup:
+            missing.append(
+                f"Duplicate publication: This paper has already been submitted by {dup['faculty_name']} (Employee ID: {dup['employee_id']})."
             )
 
 
@@ -156,6 +207,18 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
                 missing.append("Talks Delivered require file proof for filled titles.")
                 break
 
+    if getattr(modules, "mooc_courses", None):
+        for e in modules.mooc_courses.entries:
+            if _has_text(e.title) and not _is_file_proof(e.proof_file):
+                missing.append("MOOC Courses require file proof for filled entries.")
+                break
+
+    if getattr(modules, "phd_awarded", None):
+        for e in modules.phd_awarded.entries:
+            if _has_text(e.student_name) and not _is_file_proof(e.proof_file):
+                missing.append("PhD Awarded requires PDF file proof for filled entries.")
+                break
+
     for e in modules.departmental_activities.entries:
         if _has_text(e.description):
             if not _is_file_proof(e.proof_file):
@@ -174,8 +237,36 @@ def _validate_modules_for_submit(modules: EvaluationModules) -> None:
                 missing.append("FDP/Events Organized require file proof for filled entries.")
                 break
 
+    if getattr(modules, "mou_signed", None):
+        for e in modules.mou_signed.entries:
+            if _has_text(e.organization) and not _is_file_proof(e.proof_file):
+                missing.append("MOU Signed requires file proof for filled entries.")
+                break
+
+    if getattr(modules, "hod_dean_role", None) and modules.hod_dean_role.held_role:
+        if not _is_file_proof(modules.hod_dean_role.proof_file):
+            missing.append("HOD/Dean role requires file proof.")
+
+    if getattr(modules, "industrial_visits", None):
+        for e in modules.industrial_visits.entries:
+            if _has_text(e.company_name) and not _is_file_proof(e.proof_file):
+                missing.append("Organising Industrial Visits requires file proof for filled entries.")
+                break
+
     if missing:
         raise HTTPException(status_code=400, detail="; ".join(missing))
+
+
+@router.post("/check-journal-duplicate")
+def check_duplicate_journal(payload: dict, user: User = Depends(get_current_user)):
+    faculty_id = str(payload.get("faculty_id") or "")
+    doi = payload.get("doi")
+    title = payload.get("title")
+    eid = payload.get("evaluation_id")
+    dup = check_journal_duplicate(faculty_id, doi, title, eid)
+    if dup:
+        return {"is_duplicate": True, "duplicate_by": dup}
+    return {"is_duplicate": False, "duplicate_by": None}
 
 
 @router.get("")
@@ -359,7 +450,7 @@ def submit_eval(eid: str, user: User = Depends(require_role("faculty"))):
     if ev.status != "draft":
         raise HTTPException(400, "Only draft evaluations can be submitted")
 
-    _validate_modules_for_submit(ev.modules)
+    _validate_modules_for_submit(ev.modules, faculty_id=str(ev.faculty_id), evaluation_id=eid)
     update_evaluation(
         eid,
         {
@@ -513,7 +604,7 @@ def hod_approve(eid: str, user: User = Depends(require_role("hod"))):
         raise HTTPException(400, "Evaluation is not pending approval")
 
     # Validate proofs again server-side before approving
-    _validate_modules_for_submit(ev.modules)
+    _validate_modules_for_submit(ev.modules, faculty_id=str(ev.faculty_id), evaluation_id=eid)
 
     update_evaluation(
         eid,
@@ -578,7 +669,7 @@ def principal_approve(
             "Only HOD-approved evaluations can be approved by the Principal",
         )
 
-    _validate_modules_for_submit(ev.modules)
+    _validate_modules_for_submit(ev.modules, faculty_id=str(ev.faculty_id), evaluation_id=eid)
 
     update_evaluation(
         eid,

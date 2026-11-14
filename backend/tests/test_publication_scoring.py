@@ -96,19 +96,19 @@ def _no_index():
 class TestConferenceScoring:
     def test_a_scopus_only_is_four(self):
         m = _modules(conference=[_conf_entry(verification=_scopus_only())])
-        assert _points(m)["conference_articles"] == 4
+        assert _points(m)["conference_articles"] == 5
 
     def test_b_wos_only_is_four(self):
         m = _modules(conference=[_conf_entry(verification=_wos_only())])
-        assert _points(m)["conference_articles"] == 4
+        assert _points(m)["conference_articles"] == 5
 
     def test_c_crossref_only_is_four(self):
         m = _modules(conference=[_conf_entry(verification=_crossref_only())])
-        assert _points(m)["conference_articles"] == 4
+        assert _points(m)["conference_articles"] == 5
 
     def test_d_scopus_plus_wos_is_four_not_eight(self):
         m = _modules(conference=[_conf_entry(verification=_scopus_and_wos())])
-        assert _points(m)["conference_articles"] == 4
+        assert _points(m)["conference_articles"] == 5
 
     def test_e_two_valid_articles_are_eight(self):
         m = _modules(
@@ -117,7 +117,7 @@ class TestConferenceScoring:
                 _conf_entry(title="Two", verification=_wos_only()),
             ]
         )
-        assert _points(m)["conference_articles"] == 8
+        assert _points(m)["conference_articles"] == 10
 
     def test_f_four_valid_articles_are_sixteen(self):
         m = _modules(
@@ -126,7 +126,7 @@ class TestConferenceScoring:
                 for i in range(4)
             ]
         )
-        assert _points(m)["conference_articles"] == 16
+        assert _points(m)["conference_articles"] == 10
 
     def test_g_author_match_false_is_zero(self):
         v = {**_scopus_only(), "author_match": False}
@@ -160,7 +160,7 @@ class TestConferenceScoring:
 
     def test_doi_proof_is_accepted_without_scopus_url_prefix(self):
         m = _modules(conference=[_conf_entry(verification=_scopus_only())])
-        assert _points(m)["conference_articles"] == 4
+        assert _points(m)["conference_articles"] == 5
 
 
 class TestJournalScoring:
@@ -174,19 +174,19 @@ class TestJournalScoring:
 
     def test_l_scopus_only_is_four(self):
         m = _modules(journal=self._journal(_scopus_only()))
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
     def test_m_wos_only_is_four(self):
         m = _modules(journal=self._journal(_wos_only()))
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
     def test_n_crossref_only_is_four(self):
         m = _modules(journal=self._journal(_crossref_only()))
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
     def test_o_multiple_databases_is_four(self):
         m = _modules(journal=self._journal(_scopus_and_wos()))
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
     def test_p_author_match_false_is_zero(self):
         v = {**_scopus_only(), "author_match": False}
@@ -211,7 +211,7 @@ class TestJournalScoring:
             "web_of_science": {"status": "not_found"},
         }
         m = _modules(journal=self._journal(v))
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
     def test_title_issn_wos_only_is_four_without_scopus_link(self):
         m = _modules(
@@ -222,7 +222,7 @@ class TestJournalScoring:
                 verification=_wos_only(),
             )
         )
-        assert _points(m)["journal_index"] == 4
+        assert _points(m)["journal_index"] == 30
 
 
 def _chapter(title="Chapter One", proof=DOI_PROOF, verification=None):
@@ -243,7 +243,7 @@ class TestBookChapterScoring:
                 )
             }
         )
-        assert _points(m)["book_chapters"] == 6
+        assert _points(m)["book_chapters"] == 5
 
     def test_doi_scopus_only_is_six(self):
         m = _modules(
@@ -253,7 +253,7 @@ class TestBookChapterScoring:
                 )
             }
         )
-        assert _points(m)["book_chapters"] == 6
+        assert _points(m)["book_chapters"] == 5
 
     def test_doi_wos_only_is_six(self):
         m = _modules(
@@ -263,7 +263,7 @@ class TestBookChapterScoring:
                 )
             }
         )
-        assert _points(m)["book_chapters"] == 6
+        assert _points(m)["book_chapters"] == 5
 
     def test_doi_scopus_and_wos_is_six_not_twelve(self):
         m = _modules(
@@ -273,7 +273,7 @@ class TestBookChapterScoring:
                 )
             }
         )
-        assert _points(m)["book_chapters"] == 6
+        assert _points(m)["book_chapters"] == 5
 
     def test_raw_doi_verified_scopus_is_six(self):
         m = _modules(
@@ -288,7 +288,7 @@ class TestBookChapterScoring:
                 )
             }
         )
-        assert _points(m)["book_chapters"] == 6
+        assert _points(m)["book_chapters"] == 5
 
     def test_doi_unverified_is_zero(self):
         m = _modules(
@@ -340,9 +340,9 @@ class TestRegressionAndPersistence:
         }
         m = _modules(extra=extra)
         points = _points(m)
-        assert points["student_feedback"] == 15
-        assert points["book_chapters"] == 6
-        assert points["ipr"] == 30
+        assert points["student_feedback"] == 30
+        assert points["book_chapters"] == 5
+        assert points["ipr"] == 5
         assert points["conference_articles"] == 0
         assert points["journal_index"] == 0
 
@@ -374,9 +374,9 @@ class TestRegressionAndPersistence:
             "fdp_organized": m.fdp_organized.points,
         }
         assert total == sum(points.values())
-        assert m.conference_articles.points == 4
-        assert m.journal_index.points == 4
-        assert m.student_feedback.points == 15
+        assert m.conference_articles.points == 5
+        assert m.journal_index.points == 30
+        assert m.student_feedback.points == 30
 
     def _payload(self):
         return {
@@ -422,12 +422,12 @@ class TestRegressionAndPersistence:
             result = create_evaluation(self._payload())
 
         row = created[0]
-        assert row.modules["conference_articles"]["points"] == 4
-        assert row.modules["journal_index"]["points"] == 4
-        assert row.total_points == 8
-        assert result.total_points == 8
-        assert result.modules.conference_articles.points == 4
-        assert result.modules.journal_index.points == 4
+        assert row.modules["conference_articles"]["points"] == 5
+        assert row.modules["journal_index"]["points"] == 30
+        assert row.total_points == 35
+        assert result.total_points == 35
+        assert result.modules.conference_articles.points == 5
+        assert result.modules.journal_index.points == 30
 
     def test_v_update_evaluation_stores_synced_module_and_total_points(self):
         row = MagicMock()
@@ -439,7 +439,7 @@ class TestRegressionAndPersistence:
         db.query.return_value.filter.return_value.first.return_value = row
 
         returned = MagicMock()
-        returned.total_points = 8
+        returned.total_points = 35
 
         with (
             patch("app.crud.SessionLocal", return_value=db),
@@ -449,10 +449,10 @@ class TestRegressionAndPersistence:
 
             result = update_evaluation("9", self._payload())
 
-        assert row.total_points == 8
-        assert row.modules["conference_articles"]["points"] == 4
-        assert row.modules["journal_index"]["points"] == 4
-        assert result.total_points == 8
+        assert row.total_points == 35
+        assert row.modules["conference_articles"]["points"] == 5
+        assert row.modules["journal_index"]["points"] == 30
+        assert result.total_points == 35
 
     def test_create_evaluation_persists_verified_book_chapter_doi_points(self):
         created = []
@@ -490,10 +490,10 @@ class TestRegressionAndPersistence:
             result = create_evaluation(payload)
 
         row = created[0]
-        assert row.modules["book_chapters"]["points"] == 6
-        assert row.total_points == 6
-        assert result.modules.book_chapters.points == 6
-        assert result.total_points == 6
+        assert row.modules["book_chapters"]["points"] == 5
+        assert row.total_points == 5
+        assert result.modules.book_chapters.points == 5
+        assert result.total_points == 5
 
 
 class TestBookChapterSubmitValidation:

@@ -32,6 +32,16 @@ export interface StudentFeedbackData {
   points: number
 }
 
+export interface MOOCCourseEntry {
+  title: string
+  proof_file?: string
+}
+
+export interface MOOCCoursesData {
+  entries: MOOCCourseEntry[]
+  points: number
+}
+
 export interface JournalIndexVerification {
   publication_found?: boolean
   submission_method?: string
@@ -93,6 +103,8 @@ export interface JournalIndexData {
   scopus_link?: string
   issn?: string
   eissn?: string
+  doi?: string
+  declaration_accepted?: boolean
   points?: number
   verification?: JournalIndexVerification
 }
@@ -189,6 +201,17 @@ export interface FundedProjectsData {
   points: number
 }
 
+export interface PhDAwardedEntry {
+  student_name: string
+  thesis_title: string
+  year?: string
+  proof_file?: string
+}
+export interface PhDAwardedData {
+  entries: PhDAwardedEntry[]
+  points: number
+}
+
 // Module 8: FDP/Workshops Attended (max 2)
 export interface FDPAttendedEntry {
   name: string
@@ -241,6 +264,36 @@ export interface FDPOrganizedData {
   points: number
 }
 
+export interface MOUEntry {
+  organization: string
+  date_signed?: string
+  details?: string
+  proof_file?: string
+}
+export interface MOUSignedData {
+  entries: MOUEntry[]
+  points: number
+}
+
+export interface HODDeanRoleData {
+  held_role: boolean
+  role_title?: string
+  details?: string
+  proof_file?: string
+  points: number
+}
+
+export interface IndustrialVisitEntry {
+  company_name: string
+  date?: string
+  details?: string
+  proof_file?: string
+}
+export interface IndustrialVisitsData {
+  entries: IndustrialVisitEntry[]
+  points: number
+}
+
 export interface EvaluationParameter {
   id?: string
   parameter_name: string
@@ -270,17 +323,22 @@ export interface PartCData {
 
 export interface EvaluationModules {
   student_feedback: StudentFeedbackData
+  mooc_courses?: MOOCCoursesData
   journal_index: JournalIndexData
   conference_articles: ConferenceArticlesData
   book_chapters: BookChaptersData
   books: BooksData
   ipr: IPRData
   funded_projects: FundedProjectsData
+  phd_awarded?: PhDAwardedData
   fdp_attended: FDPAttendedData
   talks_delivered: TalksData
   departmental_activities: DeptActivitiesData
   institutional_activities: InstActivitiesData
   fdp_organized: FDPOrganizedData
+  mou_signed?: MOUSignedData
+  hod_dean_role?: HODDeanRoleData
+  industrial_visits?: IndustrialVisitsData
   part_a?: PartAData
   part_b?: PartBData
   part_c?: PartCData

@@ -185,8 +185,8 @@ def test_existing_research_scoring_preserved_in_evaluation_shell():
         res = create_evaluation(payload)
 
     row = created_rows[0]
-    # Journal = 4 points, Patent (verified inventor) = 30 points -> Total = 34
-    assert row.modules["journal_index"]["points"] == 4
-    assert row.modules["ipr"]["points"] == 30
-    assert row.total_points == 34
-    assert res.total_points == 34
+    # Journal = 30 points, Patent (verified inventor) = 5 points -> Total = 35
+    assert row.modules["journal_index"]["points"] == 30
+    assert row.modules["ipr"]["points"] == 5
+    assert row.total_points == 35
+    assert res.total_points == 35

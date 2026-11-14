@@ -27,12 +27,24 @@ class StudentFeedbackData(BaseModel):
     points: int = 0
 
 
+class MOOCCourseEntry(BaseModel):
+    title: str = ""
+    proof_file: Optional[str] = None
+
+
+class MOOCCoursesData(BaseModel):
+    entries: list[MOOCCourseEntry] = []
+    points: int = 0
+
+
 class JournalIndexData(BaseModel):
     value: str = ""
     title: str = ""
     scopus_link: str = ""
     issn: str = ""
     eissn: str = ""
+    doi: Optional[str] = None
+    declaration_accepted: bool = False
     verification: Optional[dict] = None
     points: int = 0
 
@@ -108,6 +120,18 @@ class FundedProjectsData(BaseModel):
     points: int = 0
 
 
+class PhDAwardedEntry(BaseModel):
+    student_name: str = ""
+    thesis_title: str = ""
+    year: Optional[str] = ""
+    proof_file: Optional[str] = None
+
+
+class PhDAwardedData(BaseModel):
+    entries: list[PhDAwardedEntry] = []
+    points: int = 0
+
+
 class FDPAttendedEntry(BaseModel):
     name: str = ""
     days: int = 0
@@ -160,6 +184,38 @@ class FDPOrganizedData(BaseModel):
     points: int = 0
 
 
+class MOUEntry(BaseModel):
+    organization: str = ""
+    date_signed: Optional[str] = ""
+    details: Optional[str] = ""
+    proof_file: Optional[str] = None
+
+
+class MOUSignedData(BaseModel):
+    entries: list[MOUEntry] = []
+    points: int = 0
+
+
+class HODDeanRoleData(BaseModel):
+    held_role: bool = False
+    role_title: str = ""
+    details: Optional[str] = ""
+    proof_file: Optional[str] = None
+    points: int = 0
+
+
+class IndustrialVisitEntry(BaseModel):
+    company_name: str = ""
+    date: Optional[str] = ""
+    details: Optional[str] = ""
+    proof_file: Optional[str] = None
+
+
+class IndustrialVisitsData(BaseModel):
+    entries: list[IndustrialVisitEntry] = []
+    points: int = 0
+
+
 class EvaluationParameter(BaseModel):
     id: Optional[str] = None
     parameter_name: str = ""
@@ -189,17 +245,22 @@ class PartCData(BaseModel):
 
 class EvaluationModules(BaseModel):
     student_feedback: StudentFeedbackData = StudentFeedbackData()
+    mooc_courses: MOOCCoursesData = MOOCCoursesData()
     journal_index: JournalIndexData = JournalIndexData()
     conference_articles: ConferenceArticlesData = ConferenceArticlesData()
     book_chapters: BookChaptersData = BookChaptersData()
     books: BooksData = BooksData()
     ipr: IPRData = IPRData()
     funded_projects: FundedProjectsData = FundedProjectsData()
+    phd_awarded: PhDAwardedData = PhDAwardedData()
     fdp_attended: FDPAttendedData = FDPAttendedData()
     talks_delivered: TalksData = TalksData()
     departmental_activities: DeptActivitiesData = DeptActivitiesData()
     institutional_activities: InstActivitiesData = InstActivitiesData()
     fdp_organized: FDPOrganizedData = FDPOrganizedData()
+    mou_signed: MOUSignedData = MOUSignedData()
+    hod_dean_role: HODDeanRoleData = HODDeanRoleData()
+    industrial_visits: IndustrialVisitsData = IndustrialVisitsData()
     part_a: PartAData = PartAData()
     part_b: PartBData = PartBData()
     part_c: PartCData = PartCData()

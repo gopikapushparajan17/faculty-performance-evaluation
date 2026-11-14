@@ -23,10 +23,10 @@ from app.routes.evaluations import _validate_modules_for_submit
 
 
 # ============================================================================
-# 1. PATENT FOUND + INVENTOR MATCHED = 30 POINTS
+# 1. PATENT FOUND + INVENTOR MATCHED = 5 POINTS
 # ============================================================================
 def test_patent_found_and_inventor_matched_awards_30_points():
-    """Case 1: Patent record found AND faculty matched as inventor -> 30 points."""
+    """Case 1: Patent record found AND faculty matched as inventor -> 5 points."""
     entry = IPREntry(
         type="patent",
         description="Smart Faculty Evaluation System",
@@ -45,11 +45,11 @@ def test_patent_found_and_inventor_matched_awards_30_points():
         ipr=IPRData(entries=[entry])
     )
     points = _compute_module_points(modules)
-    assert points["ipr"] == 30
+    assert points["ipr"] == 5
 
     total = _compute_total_points(modules)
-    assert total == 30
-    assert modules.ipr.points == 30
+    assert total == 5
+    assert modules.ipr.points == 5
 
 
 # ============================================================================
@@ -219,7 +219,7 @@ def test_patent_without_identifier_or_link_raises_validation_error():
 # 7. TRADEMARK AND COPYRIGHT PROOF UPLOADS STILL WORK
 # ============================================================================
 def test_trademark_and_copyright_proof_uploads_and_scoring():
-    """Case 7: Trademark & Copyright still require file proof and award 10 pts each."""
+    """Case 7: Trademark & Copyright award 5 pts each, max 2."""
     modules = EvaluationModules(
         ipr=IPRData(
             entries=[
@@ -240,10 +240,10 @@ def test_trademark_and_copyright_proof_uploads_and_scoring():
     # Validation succeeds because valid file proof is present
     _validate_modules_for_submit(modules)
 
-    # Points computation: 10 + 10 = 20 pts
+    # Points computation: 5 + 5 = 10 pts
     points = _compute_module_points(modules)
-    assert points["ipr"] == 20
-    assert _compute_total_points(modules) == 20
+    assert points["ipr"] == 10
+    assert _compute_total_points(modules) == 10
 
 
 def test_trademark_or_copyright_without_proof_fails_submit_validation():
@@ -293,27 +293,27 @@ def test_total_evaluation_points_authoritative_recalculation():
     )
 
     # 1. Recompute authoritative points:
-    # student_feedback: 90% -> 15 pts
-    # verified patent: 30 pts
-    # valid copyright: 10 pts
-    # Total: 15 + 30 + 10 = 55 pts
+    # student_feedback: 90% -> 30 pts
+    # verified patent: 5 pts
+    # valid copyright: 5 pts
+    # Total: 30 + 5 + 5 = 40 pts
     total = _compute_total_points(modules)
-    assert total == 55
-    assert modules.student_feedback.points == 15  # Overwritten fake points
-    assert modules.ipr.points == 40               # Overwritten fake points
+    assert total == 40
+    assert modules.student_feedback.points == 30  # Overwritten fake points
+    assert modules.ipr.points == 10               # Overwritten fake points
 
     # 2. Change verified patent to unmatched state:
     verified_patent.association_type = "applicant"
     verified_patent.inventor_match = False
 
     new_total = _compute_total_points(modules)
-    # Patent points must now drop to 0. Total = 15 + 0 + 10 = 25 pts
-    assert modules.ipr.points == 10
-    assert new_total == 25
+    # Patent points must now drop to 0. Total = 30 + 0 + 5 = 35 pts
+    assert modules.ipr.points == 5
+    assert new_total == 35
 
     # 3. Change patent verification_status to None (unverified):
     verified_patent.verification_status = None
-    assert _compute_total_points(modules) == 25
+    assert _compute_total_points(modules) == 35
 
 
 # ============================================================================
@@ -439,7 +439,7 @@ def test_strict_verification_status_verified_but_association_type_is_applicant()
 
 
 def test_strict_all_four_conditions_explicitly_satisfied():
-    """Condition 6: All four conditions are explicitly true -> True and 30 points."""
+    """Condition 6: All four conditions are explicitly true -> True and 5 points."""
     entry = IPREntry(
         type="patent",
         patent_number="IN123456B",
@@ -451,8 +451,8 @@ def test_strict_all_four_conditions_explicitly_satisfied():
     assert _is_patent_verified_and_inventor_matched(entry) is True
 
     modules = EvaluationModules(ipr=IPRData(entries=[entry]))
-    assert _compute_module_points(modules)["ipr"] == 30
-    assert _compute_total_points(modules) == 30
+    assert _compute_module_points(modules)["ipr"] == 5
+    assert _compute_total_points(modules) == 5
 
     # Test dictionary form as well
     entry_dict = {

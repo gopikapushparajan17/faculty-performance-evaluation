@@ -2,7 +2,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import type { Evaluation } from '../types/evaluation'
+import type { Evaluation, FacultyPosition } from '../types/evaluation'
+import { calculateEligibility } from '../lib/positionRules'
 
 const statusFlow = ['Draft', 'Pending', 'HOD Approved', 'Approved', 'Rejected'] as const
 
@@ -604,6 +605,31 @@ export default function EvaluationView() {
   }
 
   const m = evalData.modules
+  const pos = (evalData.faculty_position ?? 'associate_professor') as FacultyPosition
+  const tlpScore =
+    (m?.student_feedback?.points ?? 0) +
+    (m?.mooc_courses?.points ?? 0) +
+    (m?.departmental_activities?.points ?? 0) +
+    (m?.institutional_activities?.points ?? 0)
+
+  const researchScore =
+    (m?.journal_index?.points ?? 0) +
+    (m?.conference_articles?.points ?? 0) +
+    (m?.book_chapters?.points ?? 0) +
+    (m?.books?.points ?? 0) +
+    (m?.ipr?.points ?? 0) +
+    (m?.funded_projects?.points ?? 0) +
+    (m?.phd_awarded?.points ?? 0)
+
+  const othersScore =
+    (m?.fdp_organized?.points ?? 0) +
+    (m?.talks_delivered?.points ?? 0) +
+    (m?.mou_signed?.points ?? 0) +
+    (m?.hod_dean_role?.points ?? 0) +
+    (m?.industrial_visits?.points ?? 0) +
+    (m?.fdp_attended?.points ?? 0)
+
+  const eligibility = calculateEligibility(tlpScore, researchScore, othersScore, pos)
 
   const canEdit =
     user?.role === 'faculty' &&
@@ -691,28 +717,114 @@ export default function EvaluationView() {
           <div className="total-score-card">
             <h2>Total Score</h2>
             <h1>{evalData.total_points}</h1>
-            <p>Points</p>
+            <p>Points (Raw Uncapped)</p>
           </div>
 
           <div
-  className={`status-card status-${
-    evalData.status === 'hod_approved'
-      ? 'hod-approved'
-      : evalData.status
-  }`}
->
-  <h2>Status</h2>
-  <h1>
-    {evalData.status === 'hod_approved'
-      ? 'HOD APPROVED'
-      : evalData.status.toUpperCase()}
-  </h1>
-</div>
+            className={`status-card status-${
+              evalData.status === 'hod_approved'
+                ? 'hod-approved'
+                : evalData.status
+            }`}
+          >
+            <h2>Status</h2>
+            <h1>
+              {evalData.status === 'hod_approved'
+                ? 'HOD APPROVED'
+                : evalData.status.toUpperCase()}
+            </h1>
+          </div>
         </div>
 
-        <p className="form-label" style={{ marginBottom: '1rem' }}>
-          Faculty Position: {facultyPositionLabel(evalData.faculty_position)}
+        <p className="form-label" style={{ marginBottom: '1.25rem' }}>
+          Faculty Position: <strong>{facultyPositionLabel(evalData.faculty_position)}</strong>
         </p>
+
+        {/* Category Breakdown & Eligibility Cards */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-label)' }}>
+            Category Breakdown & Eligibility
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            {/* TLP Card */}
+            <div style={{ padding: '1rem', borderRadius: '8px', border: '1px solid #bfdbfe', backgroundColor: '#eff6ff' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e40af' }}>Part A — TLP</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e3a8a', margin: '0.25rem 0' }}>
+                {tlpScore} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Position Max Ref: {eligibility.tlpMax} | Min (65%): {eligibility.tlpThreshold} pts
+              </div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: eligibility.isTlpEligible ? '#dcfce7' : '#fee2e2',
+                    color: eligibility.isTlpEligible ? '#15803d' : '#b91c1c',
+                  }}
+                >
+                  {eligibility.isTlpEligible ? '✓ Eligible' : '✗ Below 65%'}
+                </span>
+              </div>
+            </div>
+
+            {/* Research Card */}
+            <div style={{ padding: '1rem', borderRadius: '8px', border: '1px solid #ddd6fe', backgroundColor: '#f5f3ff' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6d28d9' }}>Part B — Research</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#4c1d95', margin: '0.25rem 0' }}>
+                {researchScore} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Position Max Ref: {eligibility.researchMax} | Min (65%): {eligibility.researchThreshold} pts
+              </div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: eligibility.isResearchEligible ? '#dcfce7' : '#fee2e2',
+                    color: eligibility.isResearchEligible ? '#15803d' : '#b91c1c',
+                  }}
+                >
+                  {eligibility.isResearchEligible ? '✓ Eligible' : '✗ Below 65%'}
+                </span>
+              </div>
+            </div>
+
+            {/* Others Card */}
+            <div style={{ padding: '1rem', borderRadius: '8px', border: '1px solid #a7f3d0', backgroundColor: '#ecfdf5' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#047857' }}>Part C — Others</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#065f46', margin: '0.25rem 0' }}>
+                {othersScore} pts
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Position Max Ref: {eligibility.othersMax} | No Min Requirement
+              </div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: '#dcfce7',
+                    color: '#15803d',
+                  }}
+                >
+                  ✓ No Minimum
+                </span>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>
+            *Position maximums are used solely for eligibility thresholds. Actual marks are displayed uncapped.
+          </div>
+        </div>
 
         <h2 className="section-title">
           Score Breakdown
@@ -723,85 +835,56 @@ export default function EvaluationView() {
           style={{ marginTop: '1rem' }}
         >
           <div className="scores-grid">
-            <div>
-              <strong>Student Feedback</strong>
-            </div>
-            <div>
-              {m?.student_feedback?.points ?? 0}
-            </div>
-            <div>
-  <strong>Journal Index</strong>
-</div>
-            <div>
-              {m?.journal_index?.points ?? 0}
-            </div>
-            <div>
-              <strong>Conference Articles</strong>
-            </div>
-            <div>
-              {m?.conference_articles?.points ?? 0}
-            </div>
+            <div><strong>Student Feedback</strong></div>
+            <div>{m?.student_feedback?.points ?? 0}</div>
 
-            <div>
-              <strong>Book Chapters</strong>
-            </div>
-            <div>
-              {m?.book_chapters?.points ?? 0}
-            </div>
+            <div><strong>MOOC Courses</strong></div>
+            <div>{m?.mooc_courses?.points ?? 0}</div>
 
-            <div>
-              <strong>Books</strong>
-            </div>
-            <div>
-              {m?.books?.points ?? 0}
-            </div>
+            <div><strong>Department Activities</strong></div>
+            <div>{m?.departmental_activities?.points ?? 0}</div>
 
-            <div>
-              <strong>IPR</strong>
-            </div>
+            <div><strong>Institutional Activities</strong></div>
+            <div>{m?.institutional_activities?.points ?? 0}</div>
+
+            <div><strong>Journal Index</strong></div>
+            <div>{m?.journal_index?.points ?? 0}</div>
+
+            <div><strong>Conference Articles</strong></div>
+            <div>{m?.conference_articles?.points ?? 0}</div>
+
+            <div><strong>Book Chapters</strong></div>
+            <div>{m?.book_chapters?.points ?? 0}</div>
+
+            <div><strong>Books</strong></div>
+            <div>{m?.books?.points ?? 0}</div>
+
+            <div><strong>IPR</strong></div>
             <div>{m?.ipr?.points ?? 0}</div>
 
-            <div>
-              <strong>Funded Projects</strong>
-            </div>
-            <div>
-              {m?.funded_projects?.points ?? 0}
-            </div>
+            <div><strong>Funded Projects</strong></div>
+            <div>{m?.funded_projects?.points ?? 0}</div>
 
-            <div>
-              <strong>FDP Attended</strong>
-            </div>
-            <div>
-              {m?.fdp_attended?.points ?? 0}
-            </div>
+            <div><strong>PhD Awarded</strong></div>
+            <div>{m?.phd_awarded?.points ?? 0}</div>
 
-            <div>
-              <strong>Talks Delivered</strong>
-            </div>
-            <div>
-              {m?.talks_delivered?.points ?? 0}
-            </div>
+            <div><strong>FDP Organized</strong></div>
+            <div>{m?.fdp_organized?.points ?? 0}</div>
 
-            <div>
-              <strong>Department Activities</strong>
-            </div>
-            <div>
-              {m?.departmental_activities?.points ?? 0}
-            </div>
+            <div><strong>Talks Delivered</strong></div>
+            <div>{m?.talks_delivered?.points ?? 0}</div>
 
-            <div>
-              <strong>Institutional Activities</strong>
-            </div>
-            <div>
-              {m?.institutional_activities?.points ?? 0}
-            </div>
+            <div><strong>MOU Signed</strong></div>
+            <div>{m?.mou_signed?.points ?? 0}</div>
 
-            <div>
-              <strong>FDP Organized</strong>
-            </div>
-            <div>
-              {m?.fdp_organized?.points ?? 0}
-            </div>
+            <div><strong>HOD / Dean Role</strong></div>
+            <div>{m?.hod_dean_role?.points ?? 0}</div>
+
+            <div><strong>Industrial Visits</strong></div>
+            <div>{m?.industrial_visits?.points ?? 0}</div>
+
+            <div><strong>FDP Attended</strong></div>
+            <div>{m?.fdp_attended?.points ?? 0}</div>
           </div>
         </div>
       </div>
@@ -812,7 +895,19 @@ export default function EvaluationView() {
           Submitted Evidence
         </h2>
 
-        
+        {/* MOOC COURSES */}
+        {m?.mooc_courses?.entries && m.mooc_courses.entries.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>MOOC Courses</h3>
+            {m.mooc_courses.entries.map((entry, index) => (
+              <EvidenceRow
+                key={index}
+                title={entry.title || `MOOC Course ${index + 1}`}
+                proof={entry.proof_file}
+              />
+            ))}
+          </div>
+        )}
 
         {/* JOURNAL */}
         {(m?.journal_index?.title ||
@@ -915,7 +1010,7 @@ export default function EvaluationView() {
 
                 if (isPatent) {
                   if (isPatentEligible) {
-                    statusBadgeText = 'Verified (Inventor Match - 30 pts)'
+                    statusBadgeText = 'Verified (Inventor Match - 5 pts)'
                     statusBadgeStyle = { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
                   } else if (entry.verification_status === 'verified') {
                     statusBadgeText = 'Verified (Applicant/Holder Only - 0 pts)'
@@ -1042,7 +1137,7 @@ export default function EvaluationView() {
 
                           <span style={{ fontWeight: 600, color: '#64748b' }}>Points Awarded:</span>
                           <span style={{ fontWeight: 700, color: isPatentEligible ? '#16a34a' : '#dc2626' }}>
-                            {isPatentEligible ? '30 pts' : '0 pts'}
+                            {isPatentEligible ? '5 pts' : '0 pts'}
                           </span>
                         </div>
                       </div>
@@ -1071,6 +1166,20 @@ export default function EvaluationView() {
                 />
               )
             )}
+          </div>
+        )}
+
+        {/* PHD AWARDED */}
+        {m?.phd_awarded?.entries && m.phd_awarded.entries.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>PhD Awarded</h3>
+            {m.phd_awarded.entries.map((entry, index) => (
+              <EvidenceRow
+                key={index}
+                title={`Student: ${entry.student_name || 'N/A'}${entry.thesis_title ? ` — ${entry.thesis_title}` : ''}`}
+                proof={entry.proof_file}
+              />
+            ))}
           </div>
         )}
 
@@ -1111,6 +1220,45 @@ export default function EvaluationView() {
                 />
               )
             )}
+          </div>
+        )}
+
+        {/* MOU SIGNED */}
+        {m?.mou_signed?.entries && m.mou_signed.entries.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>MOU Signed</h3>
+            {m.mou_signed.entries.map((entry, index) => (
+              <EvidenceRow
+                key={index}
+                title={`Organization: ${entry.organization || 'N/A'}${entry.details ? ` (${entry.details})` : ''}`}
+                proof={entry.proof_file}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* ROLE AS HOD / DEAN */}
+        {m?.hod_dean_role?.held_role && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>Role as HOD / Dean</h3>
+            <EvidenceRow
+              title={`Served as HOD / Dean${m.hod_dean_role.details ? `: ${m.hod_dean_role.details}` : ''}`}
+              proof={m.hod_dean_role.proof_file}
+            />
+          </div>
+        )}
+
+        {/* INDUSTRIAL VISITS */}
+        {m?.industrial_visits?.entries && m.industrial_visits.entries.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>Industrial Visits</h3>
+            {m.industrial_visits.entries.map((entry, index) => (
+              <EvidenceRow
+                key={index}
+                title={`Company: ${entry.company_name || 'N/A'}${entry.details ? ` (${entry.details})` : ''}`}
+                proof={entry.proof_file}
+              />
+            ))}
           </div>
         )}
 
@@ -1178,11 +1326,16 @@ export default function EvaluationView() {
 
         {!m?.journal_index?.title &&
           !m?.journal_index?.scopus_link &&
+          !m?.mooc_courses?.entries?.length &&
           !m?.conference_articles?.entries?.length &&
           !m?.book_chapters?.entries?.length &&
           !m?.books?.entries?.length &&
           !m?.ipr?.entries?.length &&
           !m?.funded_projects?.entries?.length &&
+          !m?.phd_awarded?.entries?.length &&
+          !m?.mou_signed?.entries?.length &&
+          !m?.hod_dean_role?.held_role &&
+          !m?.industrial_visits?.entries?.length &&
           !m?.fdp_attended?.entries?.length &&
           !m?.talks_delivered?.entries?.length &&
           !m?.departmental_activities?.entries?.length &&

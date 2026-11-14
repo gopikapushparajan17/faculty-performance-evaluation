@@ -148,44 +148,90 @@ def _journal_index_points(journal_index) -> int:
         and _author_verified(verification)
         and _is_any_index_verified(verification)
     ):
-        return 4
+        return 30
     return 0
+
+
+CATEGORY_MAXIMUMS = {
+    "professor": {"tlp": 20, "research": 60, "others": 20},
+    "associate_professor": {"tlp": 30, "research": 50, "others": 20},
+    "assistant_professor": {"tlp": 40, "research": 40, "others": 20},
+}
+ELIGIBILITY_PERCENTAGE = 0.65
 
 
 def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
   from app.models import (
       StudentFeedbackData,
+      MOOCCoursesData,
       ConferenceArticlesData,
       BookChaptersData,
       BooksData,
       IPRData,
       FundedProjectsData,
+      PhDAwardedData,
       FDPAttendedData,
       TalksData,
       DeptActivitiesData,
       InstActivitiesData,
       FDPOrganizedData,
+      MOUSignedData,
+      HODDeanRoleData,
+      IndustrialVisitsData,
   )
 
   m = modules
 
+  # 1. Student Feedback: 80–100% = 30; 60–below 80% = 20; below 60% = 0
   sf = 0
   if isinstance(m.student_feedback, StudentFeedbackData):
       try:
           pct = float(m.student_feedback.percentage or 0)
       except ValueError:
           pct = 0
-      if pct >= 85:
-          sf = 15
-      elif pct >= 70:
-          sf = 10
+      if pct >= 80:
+          sf = 30
       elif pct >= 60:
-          sf = 7
-      elif pct > 0:
-          sf = 5
+          sf = 20
+      else:
+          sf = 0
 
+  # 2. MOOC Courses: 5 each, maximum 2
+  mooc = 0
+  if getattr(m, "mooc_courses", None) and isinstance(m.mooc_courses, MOOCCoursesData):
+      valid_mooc = [
+          e for e in m.mooc_courses.entries
+          if _has_text(e.title) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      mooc = min(len(valid_mooc), 2) * 5
+
+  # 3. Departmental Activities (3 each) & 4. Institutional Activities (5 each)
+  # Combined maximum = 2 entries. Allow 2 departmental, 2 institutional or 1 of each.
+  dept_valid = []
+  if isinstance(m.departmental_activities, DeptActivitiesData):
+      dept_valid = [
+          e for e in m.departmental_activities.entries
+          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+
+  inst_valid = []
+  if isinstance(m.institutional_activities, InstActivitiesData):
+      inst_valid = [
+          e for e in m.institutional_activities.entries
+          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+
+  # Allocate up to 2 entries combined, prioritizing institutional (5 pts > 3 pts) if exceeding 2
+  effective_inst = min(len(inst_valid), 2)
+  effective_dept = min(len(dept_valid), 2 - effective_inst)
+  departmental = effective_dept * 3
+  institutional = effective_inst * 5
+
+  # RESEARCH MODULES
+  # 1. Journal Index: 30 marks per verified paper
   ji = _journal_index_points(m.journal_index)
 
+  # 2. Conference Articles: 5 each, maximum 2; preserve verification
   conf = 0
   if isinstance(m.conference_articles, ConferenceArticlesData):
     valid = [
@@ -197,8 +243,9 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
             and _is_any_index_verified(e.verification)
         )
     ]
-    conf = min(len(valid), 4) * 4
+    conf = min(len(valid), 2) * 5
 
+  # 3. Book Chapters: 5 each, maximum 2; preserve verification
   bc = 0
   if isinstance(m.book_chapters, BookChaptersData):
       valid = [
@@ -213,28 +260,34 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
               )
           )
       ]
-      bc = min(len(valid), 4) * 6
+      bc = min(len(valid), 2) * 5
 
+  # 4. Authored/Edited Books: 5 each, maximum 2
   books = 0
   if isinstance(m.books, BooksData):
       valid = [
           e for e in m.books.entries
           if _has_text(e.title) and _has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)
       ]
-      for entry in valid[:3]:
-          books += 20 if entry.type == "authored" else 10
+      books = min(len(valid), 2) * 5
 
+  # 5. IPR: 5 each, maximum 2; preserve verification
   ipr = 0
   if isinstance(m.ipr, IPRData):
+      valid_ipr = 0
       for e in m.ipr.entries:
           if e.type == "patent":
               if _is_patent_verified_and_inventor_matched(e):
-                  ipr += 30
+                  valid_ipr += 1
           elif e.type in ("copyright", "trademark"):
-              if not _has_text(e.description) or not (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
-                  continue
-              ipr += 10
+              if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file)):
+                  valid_ipr += 1
+      ipr = min(valid_ipr, 2) * 5
 
+  # 6. Funded Projects/Consultancy:
+  #    - ₹2–5 lakh = 5 marks
+  #    - Above ₹5 lakh = 30 marks
+  #    - Below ₹2 lakh = 0
   funded = 0
   if isinstance(m.funded_projects, FundedProjectsData):
       for e in m.funded_projects.entries:
@@ -242,16 +295,73 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
               continue
           amt = float(e.amount_lakhs or 0)
           if amt > 5:
-              funded += 20
-          elif amt >= 3:
-              funded += 15
+              funded += 30
           elif amt >= 2:
-              funded += 12
-          elif amt >= 1:
-              funded += 10
-          elif amt > 0:
               funded += 5
 
+  # 7. PhD Awarded: 5 per student; PDF proof required
+  phd = 0
+  if getattr(m, "phd_awarded", None) and isinstance(m.phd_awarded, PhDAwardedData):
+      valid_phd = [
+          e for e in m.phd_awarded.entries
+          if _has_text(e.student_name) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      phd = len(valid_phd) * 5
+
+  # OTHERS MODULES
+  # 1. Organising FDPs/Workshops:
+  #    - 5 days = 5 marks
+  #    - 3–4 days = 4 marks
+  #    - 1–2 days = 3 marks
+  fdp_organized = 0
+  if isinstance(m.fdp_organized, FDPOrganizedData):
+      valid = [
+          e for e in m.fdp_organized.entries
+          if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      for e in valid:
+          days = e.days or 0
+          if days >= 5:
+              fdp_organized += 5
+          elif days >= 3:
+              fdp_organized += 4
+          elif days >= 1:
+              fdp_organized += 3
+
+  # 2. Invited Talks/Resource Person: 5 each, maximum 2
+  talks = 0
+  if isinstance(m.talks_delivered, TalksData):
+      valid = [
+          e for e in m.talks_delivered.entries
+          if _has_text(e.title) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      talks = min(len(valid), 2) * 5
+
+  # 3. MOU Signed: 3 each, maximum 2
+  mou = 0
+  if getattr(m, "mou_signed", None) and isinstance(m.mou_signed, MOUSignedData):
+      valid_mou = [
+          e for e in m.mou_signed.entries
+          if _has_text(e.organization) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      mou = min(len(valid_mou), 2) * 3
+
+  # 4. HOD/Dean: 2 marks
+  hod_dean = 0
+  if getattr(m, "hod_dean_role", None) and isinstance(m.hod_dean_role, HODDeanRoleData):
+      if m.hod_dean_role.held_role and _has_text(m.hod_dean_role.proof_file):
+          hod_dean = 2
+
+  # 5. Organising Industrial Visits: 2 each, maximum 2
+  visits = 0
+  if getattr(m, "industrial_visits", None) and isinstance(m.industrial_visits, IndustrialVisitsData):
+      valid_visits = [
+          e for e in m.industrial_visits.entries
+          if _has_text(e.company_name) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
+      ]
+      visits = min(len(valid_visits), 2) * 2
+
+  # Legacy FDP Attended (preserved if present)
   fdp_attended = 0
   if isinstance(m.fdp_attended, FDPAttendedData):
       valid = [
@@ -267,78 +377,151 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
           elif days >= 3:
               fdp_attended += 3
 
-  talks = 0
-  if isinstance(m.talks_delivered, TalksData):
-      valid = [
-          e for e in m.talks_delivered.entries
-          if _has_text(e.title) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
-      ]
-      talks = min(len(valid), 2) * 5
-
-  departmental = 0
-  if isinstance(m.departmental_activities, DeptActivitiesData):
-      valid = [
-          e for e in m.departmental_activities.entries
-          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
-      ]
-      departmental = min(len(valid), 3) * 3
-
-  institutional = 0
-  if isinstance(m.institutional_activities, InstActivitiesData):
-      valid = [
-          e for e in m.institutional_activities.entries
-          if _has_text(e.description) and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
-      ]
-      institutional = min(len(valid), 3) * 5
-
-  fdp_organized = 0
-  if isinstance(m.fdp_organized, FDPOrganizedData):
-      valid = [
-          e for e in m.fdp_organized.entries
-          if _has_text(e.name) and e.days and e.days > 0 and (_has_text(e.proof_file) and not _is_valid_scopus(e.proof_file))
-      ]
-      for e in valid[:2]:
-          days = e.days or 0
-          if days >= 5:
-              fdp_organized += 10
-          elif days >= 3:
-              fdp_organized += 5
-          elif days >= 1:
-              fdp_organized += 2
-
   return {
       "student_feedback": sf,
+      "mooc_courses": mooc,
+      "departmental_activities": departmental,
+      "institutional_activities": institutional,
       "journal_index": ji,
       "conference_articles": conf,
       "book_chapters": bc,
       "books": books,
       "ipr": ipr,
       "funded_projects": funded,
-      "fdp_attended": fdp_attended,
-      "talks_delivered": talks,
-      "departmental_activities": departmental,
-      "institutional_activities": institutional,
+      "phd_awarded": phd,
       "fdp_organized": fdp_organized,
+      "talks_delivered": talks,
+      "mou_signed": mou,
+      "hod_dean_role": hod_dean,
+      "industrial_visits": visits,
+      "fdp_attended": fdp_attended,
   }
 
 
 def _sync_module_points(modules: EvaluationModules) -> int:
     points = _compute_module_points(modules)
 
-    modules.student_feedback.points = points["student_feedback"]
-    modules.journal_index.points = points["journal_index"]
-    modules.conference_articles.points = points["conference_articles"]
-    modules.book_chapters.points = points["book_chapters"]
-    modules.books.points = points["books"]
-    modules.ipr.points = points["ipr"]
-    modules.funded_projects.points = points["funded_projects"]
-    modules.fdp_attended.points = points["fdp_attended"]
-    modules.talks_delivered.points = points["talks_delivered"]
-    modules.departmental_activities.points = points["departmental_activities"]
-    modules.institutional_activities.points = points["institutional_activities"]
-    modules.fdp_organized.points = points["fdp_organized"]
+    modules.student_feedback.points = points.get("student_feedback", 0)
+    if hasattr(modules, "mooc_courses") and modules.mooc_courses:
+        modules.mooc_courses.points = points.get("mooc_courses", 0)
+    modules.journal_index.points = points.get("journal_index", 0)
+    modules.conference_articles.points = points.get("conference_articles", 0)
+    modules.book_chapters.points = points.get("book_chapters", 0)
+    modules.books.points = points.get("books", 0)
+    modules.ipr.points = points.get("ipr", 0)
+    modules.funded_projects.points = points.get("funded_projects", 0)
+    if hasattr(modules, "phd_awarded") and modules.phd_awarded:
+        modules.phd_awarded.points = points.get("phd_awarded", 0)
+    modules.fdp_attended.points = points.get("fdp_attended", 0)
+    modules.talks_delivered.points = points.get("talks_delivered", 0)
+    modules.departmental_activities.points = points.get("departmental_activities", 0)
+    modules.institutional_activities.points = points.get("institutional_activities", 0)
+    modules.fdp_organized.points = points.get("fdp_organized", 0)
+    if hasattr(modules, "mou_signed") and modules.mou_signed:
+        modules.mou_signed.points = points.get("mou_signed", 0)
+    if hasattr(modules, "hod_dean_role") and modules.hod_dean_role:
+        modules.hod_dean_role.points = points.get("hod_dean_role", 0)
+    if hasattr(modules, "industrial_visits") and modules.industrial_visits:
+        modules.industrial_visits.points = points.get("industrial_visits", 0)
 
+    # Return uncapped sum of actual marks
     return sum(points.values())
+
+
+def compute_category_scores(
+    tlp_or_modules,
+    research_or_pos: float | str | None = None,
+    others: float | None = None,
+    faculty_position: str | None = "associate_professor",
+) -> dict:
+    from app.models import EvaluationModules
+
+    if isinstance(tlp_or_modules, EvaluationModules):
+        points = _compute_module_points(tlp_or_modules)
+        tlp_actual = (
+            points.get("student_feedback", 0)
+            + points.get("mooc_courses", 0)
+            + points.get("departmental_activities", 0)
+            + points.get("institutional_activities", 0)
+        )
+        research_actual = (
+            points.get("journal_index", 0)
+            + points.get("conference_articles", 0)
+            + points.get("book_chapters", 0)
+            + points.get("books", 0)
+            + points.get("ipr", 0)
+            + points.get("funded_projects", 0)
+            + points.get("phd_awarded", 0)
+        )
+        others_actual = (
+            points.get("fdp_organized", 0)
+            + points.get("talks_delivered", 0)
+            + points.get("mou_signed", 0)
+            + points.get("hod_dean_role", 0)
+            + points.get("industrial_visits", 0)
+            + points.get("fdp_attended", 0)
+        )
+        pos = str(research_or_pos) if isinstance(research_or_pos, str) else (faculty_position or "associate_professor")
+    else:
+        tlp_actual = float(tlp_or_modules or 0)
+        research_actual = float(research_or_pos or 0) if isinstance(research_or_pos, (int, float)) else 0.0
+        others_actual = float(others or 0)
+        pos = str(faculty_position or "associate_professor")
+        points = {}
+
+    # NEVER cap actual marks: raw display
+    grand_total = tlp_actual + research_actual + others_actual
+
+    pos_key = pos.lower() if pos else "associate_professor"
+    maxes = CATEGORY_MAXIMUMS.get(pos_key, CATEGORY_MAXIMUMS["associate_professor"])
+
+    tlp_max = maxes["tlp"]
+    research_max = maxes["research"]
+    others_max = maxes["others"]
+
+    tlp_threshold = round(tlp_max * ELIGIBILITY_PERCENTAGE, 1)
+    research_threshold = round(research_max * ELIGIBILITY_PERCENTAGE, 1)
+
+    is_tlp_eligible = tlp_actual >= tlp_threshold
+    is_research_eligible = research_actual >= research_threshold
+    is_overall_eligible = is_tlp_eligible and is_research_eligible
+
+    return {
+        "tlp": {
+            "score": tlp_actual,
+            "max": tlp_max,
+            "threshold": tlp_threshold,
+            "eligible": is_tlp_eligible,
+        },
+        "research": {
+            "score": research_actual,
+            "max": research_max,
+            "threshold": research_threshold,
+            "eligible": is_research_eligible,
+        },
+        "others": {
+            "score": others_actual,
+            "max": others_max,
+            "threshold": 0.0,
+            "eligible": True,
+        },
+        "overall_eligible": is_overall_eligible,
+        "total_score": grand_total,
+        # Flat keys for convenience
+        "tlp_actual": tlp_actual,
+        "research_actual": research_actual,
+        "others_actual": others_actual,
+        "grand_total": grand_total,
+        "tlp_max": tlp_max,
+        "research_max": research_max,
+        "others_max": others_max,
+        "tlp_threshold": tlp_threshold,
+        "research_threshold": research_threshold,
+        "is_tlp_eligible": is_tlp_eligible,
+        "is_research_eligible": is_research_eligible,
+        "is_overall_eligible": is_overall_eligible,
+        "module_points": points,
+    }
 
 
 def _compute_total_points(modules: EvaluationModules) -> int:
