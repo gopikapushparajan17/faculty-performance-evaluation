@@ -241,6 +241,33 @@ export interface FDPOrganizedData {
   points: number
 }
 
+export interface EvaluationParameter {
+  id?: string
+  parameter_name: string
+  max_points?: number
+  entered_value?: any
+  evidence_url?: string
+  proof_file?: string
+  verification_status?: string
+  awarded_points?: number
+  remarks?: string
+}
+
+export interface PartAData {
+  title?: string
+  parameters: EvaluationParameter[]
+}
+
+export interface PartBData {
+  title?: string
+  parameters: EvaluationParameter[]
+}
+
+export interface PartCData {
+  title?: string
+  parameters: EvaluationParameter[]
+}
+
 export interface EvaluationModules {
   student_feedback: StudentFeedbackData
   journal_index: JournalIndexData
@@ -254,6 +281,9 @@ export interface EvaluationModules {
   departmental_activities: DeptActivitiesData
   institutional_activities: InstActivitiesData
   fdp_organized: FDPOrganizedData
+  part_a?: PartAData
+  part_b?: PartBData
+  part_c?: PartCData
 }
 
 export interface Evaluation {
@@ -261,10 +291,14 @@ export interface Evaluation {
   faculty_id: string
   faculty?: FacultyProfile
   faculty_position?: FacultyPosition
+  position?: string
   ef_id?: string
   academic_year: string
   status: EvaluationStatus
   modules: EvaluationModules
+  part_a?: PartAData
+  part_b?: PartBData
+  part_c?: PartCData
   total_points: number
   approved_at?: string
   approved_by?: string

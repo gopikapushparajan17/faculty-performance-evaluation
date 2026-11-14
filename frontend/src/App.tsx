@@ -75,6 +75,15 @@ export default function App() {
         />
 
         <Route
+          path="evaluation/new"
+          element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <EvaluationForm />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="evaluation/new/:facultyId"
           element={
             <ProtectedRoute allowedRoles={['faculty']}>

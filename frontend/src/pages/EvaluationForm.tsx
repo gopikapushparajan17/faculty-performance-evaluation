@@ -18,10 +18,12 @@ import {
   instActivitiesPoints,
   fdpOrganizedPoints,
 } from '../lib/pointRules'
+import { getPositionTitle } from '../lib/positionRules'
 import type {
   Evaluation,
   EvaluationModules,
   FacultyPosition,
+  FacultyProfile,
   JournalIndexVerification,
 } from '../types/evaluation'
 
@@ -115,6 +117,11 @@ export default function EvaluationForm() {
   const [bookChapterVerificationError, setBookChapterVerificationError] = useState<Record<number, string>>({})
   
   const editId = evaluationId
+
+  const [workflowStep, setWorkflowStep] = useState<'setup' | 'evaluation'>(editId ? 'evaluation' : 'setup')
+  const [selectedPosition, setSelectedPosition] = useState<FacultyPosition | ''>(editId ? 'associate_professor' : '')
+  const [setupError, setSetupError] = useState('')
+  const [activeTab, setActiveTab] = useState<'part_a' | 'part_b' | 'part_c'>('part_a')
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -256,10 +263,14 @@ export default function EvaluationForm() {
           return
         }
 
+        const pos = data.faculty_position ?? 'associate_professor'
+        setSelectedPosition(pos)
+        setWorkflowStep('evaluation')
+
         form.reset({
           ...data,
           id: data.id,
-          faculty_position: data.faculty_position ?? 'associate_professor',
+          faculty_position: pos,
           modules: data.modules ?? defaultModules,
         })
       }).catch(() => {})
@@ -267,6 +278,16 @@ export default function EvaluationForm() {
       form.setValue('faculty_id', facultyId)
     }
   }, [editId])
+
+  useEffect(() => {
+    if (!facultyId && user?.role === 'faculty') {
+      api.get<FacultyProfile>('/faculty/me').then(({ data }) => {
+        if (data?.id) {
+          form.setValue('faculty_id', data.id)
+        }
+      }).catch(() => {})
+    }
+  }, [facultyId, user])
 
   const persistDraft = async (data: FormValues) => {
     const modules = {
@@ -333,10 +354,12 @@ export default function EvaluationForm() {
       },
     }
 
+    const pos = (selectedPosition || data.faculty_position || 'associate_professor') as FacultyPosition
     const payload: FormValues = {
       ...data,
       faculty_id: facultyId ?? data.faculty_id,
-      faculty_position: data.faculty_position ?? 'associate_professor',
+      faculty_position: pos,
+      position: getPositionTitle(pos),
       modules,
       total_points: computed.total,
       status: 'draft',
@@ -575,26 +598,276 @@ export default function EvaluationForm() {
     }
   }
 
-  return (
-    <div>
-      <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Evaluation Form</h1>
+  const currentPos = (selectedPosition || facultyPosition || 'associate_professor') as FacultyPosition
+  const positionTitle = getPositionTitle(currentPos)
 
-      <p className="form-label" style={{ marginBottom: '1.5rem' }}>
-        Academic year: {form.watch('academic_year')}
-      </p>
+  if (workflowStep === 'setup') {
+    return (
+      <div className="evaluation-page" style={{ maxWidth: '640px', margin: '2rem auto' }}>
+        <div className="card" style={{ padding: '2.5rem' }}>
+          <h1 className="page-title" style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>
+            Faculty Evaluation
+          </h1>
+
+          <div style={{ marginBottom: '2rem' }}>
+            <label
+              className="form-label"
+              style={{
+                display: 'block',
+                fontSize: '1.05rem',
+                fontWeight: 600,
+                color: 'var(--text-label)',
+                marginBottom: '1rem',
+              }}
+            >
+              Position:
+            </label>
+
+            {setupError && (
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  color: '#dc2626',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {setupError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  border: '1px solid',
+                  borderColor: selectedPosition === 'professor' ? 'var(--secondary)' : 'var(--border)',
+                  backgroundColor: selectedPosition === 'professor' ? 'rgba(37, 99, 235, 0.05)' : 'var(--white)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="faculty_position"
+                  value="professor"
+                  checked={selectedPosition === 'professor'}
+                  onChange={() => {
+                    setSelectedPosition('professor')
+                    setSetupError('')
+                  }}
+                  style={{ width: '1.15rem', height: '1.15rem', accentColor: 'var(--secondary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: selectedPosition === 'professor' ? 600 : 400 }}>Professor</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  border: '1px solid',
+                  borderColor: selectedPosition === 'associate_professor' ? 'var(--secondary)' : 'var(--border)',
+                  backgroundColor: selectedPosition === 'associate_professor' ? 'rgba(37, 99, 235, 0.05)' : 'var(--white)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="faculty_position"
+                  value="associate_professor"
+                  checked={selectedPosition === 'associate_professor'}
+                  onChange={() => {
+                    setSelectedPosition('associate_professor')
+                    setSetupError('')
+                  }}
+                  style={{ width: '1.15rem', height: '1.15rem', accentColor: 'var(--secondary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: selectedPosition === 'associate_professor' ? 600 : 400 }}>Associate Professor</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.85rem 1rem',
+                  border: '1px solid',
+                  borderColor: selectedPosition === 'assistant_professor' ? 'var(--secondary)' : 'var(--border)',
+                  backgroundColor: selectedPosition === 'assistant_professor' ? 'rgba(37, 99, 235, 0.05)' : 'var(--white)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="faculty_position"
+                  value="assistant_professor"
+                  checked={selectedPosition === 'assistant_professor'}
+                  onChange={() => {
+                    setSelectedPosition('assistant_professor')
+                    setSetupError('')
+                  }}
+                  style={{ width: '1.15rem', height: '1.15rem', accentColor: 'var(--secondary)', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: selectedPosition === 'assistant_professor' ? 600 : 400 }}>Assistant Professor</span>
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (!selectedPosition) {
+                  setSetupError('Please select a position to continue.')
+                  return
+                }
+                form.setValue('faculty_position', selectedPosition)
+                form.setValue('position', getPositionTitle(selectedPosition))
+                setWorkflowStep('evaluation')
+              }}
+              style={{ padding: '0.625rem 1.75rem', fontSize: '1rem' }}
+            >
+              Next
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard')}
+              className="btn btn-outline"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="evaluation-page">
+      {/* Header & Position summary banner */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div>
+          <h1 className="page-title" style={{ marginBottom: '0.25rem' }}>Faculty Evaluation</h1>
+          <p className="form-label" style={{ margin: 0 }}>
+            Academic year: <strong>{form.watch('academic_year')}</strong>
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ padding: '0.5rem 1rem', backgroundColor: 'rgba(37, 99, 235, 0.08)', borderRadius: '6px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Selected Position: </span>
+            <strong style={{ color: 'var(--primary)', fontSize: '0.95rem' }}>{positionTitle}</strong>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWorkflowStep('setup')}
+            className="btn btn-outline btn-sm"
+            style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+          >
+            Change Position
+          </button>
+        </div>
+      </div>
+
+      {/* Exactly three major tabs: Part A — TLP, Part B — Research, Part C — Others */}
+      <div className="eval-tabs" style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid var(--border)', marginBottom: '1.5rem' }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('part_a')}
+          className={`eval-tab-btn ${activeTab === 'part_a' ? 'active' : ''}`}
+          style={{
+            padding: '0.75rem 1.5rem',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            border: 'none',
+            borderBottom: activeTab === 'part_a' ? '3px solid var(--secondary)' : '3px solid transparent',
+            backgroundColor: activeTab === 'part_a' ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+            color: activeTab === 'part_a' ? 'var(--secondary)' : 'var(--text-muted)',
+            borderRadius: '6px 6px 0 0',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Part A — TLP
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('part_b')}
+          className={`eval-tab-btn ${activeTab === 'part_b' ? 'active' : ''}`}
+          style={{
+            padding: '0.75rem 1.5rem',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            border: 'none',
+            borderBottom: activeTab === 'part_b' ? '3px solid var(--secondary)' : '3px solid transparent',
+            backgroundColor: activeTab === 'part_b' ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+            color: activeTab === 'part_b' ? 'var(--secondary)' : 'var(--text-muted)',
+            borderRadius: '6px 6px 0 0',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Part B — Research
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('part_c')}
+          className={`eval-tab-btn ${activeTab === 'part_c' ? 'active' : ''}`}
+          style={{
+            padding: '0.75rem 1.5rem',
+            fontWeight: 600,
+            fontSize: '1rem',
+            cursor: 'pointer',
+            border: 'none',
+            borderBottom: activeTab === 'part_c' ? '3px solid var(--secondary)' : '3px solid transparent',
+            backgroundColor: activeTab === 'part_c' ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+            color: activeTab === 'part_c' ? 'var(--secondary)' : 'var(--text-muted)',
+            borderRadius: '6px 6px 0 0',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Part C — Others
+        </button>
+      </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)}>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem' }}>
-            Faculty Position
-          </label>
+        {/* TAB 1: Part A — TLP */}
+        <div style={{ display: activeTab === 'part_a' ? 'block' : 'none' }}>
+          <div className="card" style={{ padding: '1.75rem', marginBottom: '1.5rem' }}>
+            <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
+              Part A — Teaching, Learning and Professional Development (TLP)
+            </h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+              Teaching, Learning and Professional (TLP) development section.
+              Evaluation parameters, scoring criteria, and maximum points for <strong>{positionTitle}</strong> will be configured here in the next stage.
+            </p>
 
-          <select {...form.register('faculty_position')} className="input">
-            <option value="assistant_professor">Assistant Professor</option>
-            <option value="associate_professor">Associate Professor</option>
-            <option value="professor">Professor</option>
-          </select>
-        </div>
+            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '2rem', backgroundColor: '#f8fafc', textAlign: 'center', marginBottom: '1.5rem' }}>
+              <p style={{ margin: 0, color: 'var(--text)', fontWeight: 500, fontSize: '0.95rem' }}>
+                Part A structural container initialized for {positionTitle}
+              </p>
+              <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                Parameters and point values will be provided in the upcoming stage without altering existing research logic.
+              </p>
+            </div>
 
         {/* Module 1: Student Feedback */}
         <ModuleCard title="1. Student Feedback" points={computed.student_feedback} defaultOpen>
@@ -613,6 +886,30 @@ export default function EvaluationForm() {
         </ModuleCard>
 
         
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setActiveTab('part_b')}
+            >
+              Next: Part B — Research →
+            </button>
+          </div>
+        </div>
+
+        {/* TAB 2: Part B — Research */}
+        <div style={{ display: activeTab === 'part_b' ? 'block' : 'none' }}>
+          <div className="card" style={{ padding: '1.75rem', marginBottom: '1.5rem' }}>
+            <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
+              Part B — Research and Academic Contributions
+            </h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+              Research publications, conference proceedings, book chapters, and patents.
+              All existing external database verification engines (Crossref, Scopus, Web of Science, EPO OPS, Google Patents) and scoring logic remain authoritative and intact.
+            </p>
+
         {/* Module 2: Journal Index */}
         <ModuleCard title="2. Journal Index" points={computed.journal_index} defaultOpen>
           <div className="form-row">
@@ -976,6 +1273,52 @@ export default function EvaluationForm() {
         {/* Module 7: Funded Projects */}
         <FundedProjectsModule form={form} points={computed.funded_projects} />
 
+
+            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '1.5rem', backgroundColor: '#f8fafc', textAlign: 'center', marginTop: '1.5rem' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                Extensible structural container for additional future research parameters.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setActiveTab('part_a')}
+            >
+              ← Previous: Part A — TLP
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setActiveTab('part_c')}
+            >
+              Next: Part C — Others →
+            </button>
+          </div>
+        </div>
+
+        {/* TAB 3: Part C — Others */}
+        <div style={{ display: activeTab === 'part_c' ? 'block' : 'none' }}>
+          <div className="card" style={{ padding: '1.75rem', marginBottom: '1.5rem' }}>
+            <h2 className="section-title" style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--primary)' }}>
+              Part C — Others
+            </h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+              Other academic, institutional, departmental, extension, and professional activities.
+              Evaluation parameters and point rules for <strong>{positionTitle}</strong> will be configured in the next stage.
+            </p>
+
+            <div style={{ border: '2px dashed var(--border)', borderRadius: '8px', padding: '1.75rem', backgroundColor: '#f8fafc', textAlign: 'center', marginBottom: '1.5rem' }}>
+              <p style={{ margin: 0, color: 'var(--text)', fontWeight: 500, fontSize: '0.95rem' }}>
+                Part C structural container initialized for {positionTitle}
+              </p>
+              <p style={{ margin: '0.5rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                Parameters and point values will be provided in the upcoming stage.
+              </p>
+            </div>
+
         {/* Module 8: FDP Attended - max 2 */}
         <FDPAttendedModule form={form} points={computed.fdp_attended} />
 
@@ -991,6 +1334,19 @@ export default function EvaluationForm() {
         {/* Module 12: FDP Organized - max 2 */}
         <FDPOrganizedModule form={form} points={computed.fdp_organized} />
 
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setActiveTab('part_b')}
+            >
+              ← Previous: Part B — Research
+            </button>
+          </div>
+        </div>
+
         <div className="total-box">
           <p>Grand Total: {computed.total} points</p>
         </div>
@@ -1002,7 +1358,7 @@ export default function EvaluationForm() {
 
           {user?.role === 'faculty' && form.watch('status') === 'draft' && (
             <button type="button" onClick={submitEval} className="btn btn-secondary">
-              Submit
+              Submit Evaluation
             </button>
           )}
 

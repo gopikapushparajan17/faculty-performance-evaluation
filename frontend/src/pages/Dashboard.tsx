@@ -1166,13 +1166,22 @@ const refreshHodLists = async () => {
         </>
       ) : (
         <>
-          {profile && (
-            <div className="mb-6">
-              <Link to={`/evaluation/new/${profile.id}`} className="btn btn-primary">
-                Start New Evaluation
-              </Link>
-            </div>
-          )}
+          <div className="mb-6">
+            <Link
+              to={profile?.id ? `/evaluation/new/${profile.id}` : '/evaluation/new'}
+              className="btn btn-primary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.625rem 1.25rem',
+                fontSize: '0.95rem',
+                fontWeight: '600',
+              }}
+            >
+              Start New Evaluation
+            </Link>
+          </div>
 
           <div className="card table-wrap">
             <table>

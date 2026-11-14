@@ -160,6 +160,33 @@ class FDPOrganizedData(BaseModel):
     points: int = 0
 
 
+class EvaluationParameter(BaseModel):
+    id: Optional[str] = None
+    parameter_name: str = ""
+    max_points: Optional[float] = None
+    entered_value: Optional[Any] = None
+    evidence_url: Optional[str] = None
+    proof_file: Optional[str] = None
+    verification_status: Optional[str] = None
+    awarded_points: Optional[float] = None
+    remarks: Optional[str] = None
+
+
+class PartAData(BaseModel):
+    title: str = "Part A — Teaching, Learning and Professional Development (TLP)"
+    parameters: list[EvaluationParameter] = []
+
+
+class PartBData(BaseModel):
+    title: str = "Part B — Research and Academic Contributions"
+    parameters: list[EvaluationParameter] = []
+
+
+class PartCData(BaseModel):
+    title: str = "Part C — Others"
+    parameters: list[EvaluationParameter] = []
+
+
 class EvaluationModules(BaseModel):
     student_feedback: StudentFeedbackData = StudentFeedbackData()
     journal_index: JournalIndexData = JournalIndexData()
@@ -173,6 +200,9 @@ class EvaluationModules(BaseModel):
     departmental_activities: DeptActivitiesData = DeptActivitiesData()
     institutional_activities: InstActivitiesData = InstActivitiesData()
     fdp_organized: FDPOrganizedData = FDPOrganizedData()
+    part_a: PartAData = PartAData()
+    part_b: PartBData = PartBData()
+    part_c: PartCData = PartCData()
 
 
 class Evaluation(BaseModel):
@@ -186,8 +216,12 @@ class Evaluation(BaseModel):
         "associate_professor",
         "professor"
     ] = "associate_professor"
+    position: Optional[str] = None
     status: str = "draft"  # draft | pending | hod_approved | approved | rejected
     modules: EvaluationModules = EvaluationModules()
+    part_a: Optional[PartAData] = None
+    part_b: Optional[PartBData] = None
+    part_c: Optional[PartCData] = None
     total_points: int = 0
     approved_at: Optional[str] = None
     approved_by: Optional[str] = None

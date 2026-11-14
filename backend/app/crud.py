@@ -251,12 +251,27 @@ def create_evaluation(data: dict):
 
         total_points = _compute_total_points(modules)
 
+        faculty_position = data.get("faculty_position") or "associate_professor"
+        position = data.get("position")
+        if not position:
+            position = "Professor" if faculty_position == "professor" else "Assistant Professor" if faculty_position == "assistant_professor" else "Associate Professor"
+
+        mod_dict = modules.model_dump()
+        mod_dict["faculty_position"] = faculty_position
+        mod_dict["position"] = position
+        if "part_a" in data and data["part_a"]:
+            mod_dict["part_a"] = data["part_a"]
+        if "part_b" in data and data["part_b"]:
+            mod_dict["part_b"] = data["part_b"]
+        if "part_c" in data and data["part_c"]:
+            mod_dict["part_c"] = data["part_c"]
+
         evaluation = EvaluationDB(
             faculty_id=int(data["faculty_id"]),
             ef_id=int(data["ef_id"]),
             academic_year=data.get("academic_year", ""),
             status=data.get("status", "draft"),
-            modules=modules.model_dump(),
+            modules=mod_dict,
             total_points=total_points,
         )
 
@@ -269,9 +284,13 @@ def create_evaluation(data: dict):
             faculty_id=str(evaluation.faculty_id),
             ef_id=str(evaluation.ef_id),
             academic_year=evaluation.academic_year,
-            faculty_position=data.get("faculty_position", "associate_professor"),
+            faculty_position=faculty_position,
+            position=position,
             status=evaluation.status,
             modules=modules,
+            part_a=mod_dict.get("part_a"),
+            part_b=mod_dict.get("part_b"),
+            part_c=mod_dict.get("part_c"),
             total_points=evaluation.total_points,
         )
 
@@ -291,14 +310,22 @@ def get_evaluation(eid: str):
 
         faculty = get_faculty(str(e.faculty_id))
 
+        mod_dict = e.modules or {}
+        pos = mod_dict.get("faculty_position") or "associate_professor"
+        position_name = mod_dict.get("position")
         return Evaluation(
             id=str(e.id),
             faculty_id=str(e.faculty_id),
             faculty=faculty,
             ef_id=str(e.ef_id),
             academic_year=e.academic_year or "",
+            faculty_position=pos,
+            position=position_name,
             status=e.status or "draft",
-            modules=EvaluationModules(**(e.modules or {})),
+            modules=EvaluationModules(**mod_dict),
+            part_a=mod_dict.get("part_a"),
+            part_b=mod_dict.get("part_b"),
+            part_c=mod_dict.get("part_c"),
             total_points=e.total_points or 0,
             approved_at=e.approved_at,
             approved_by=e.approved_by,
@@ -550,7 +577,26 @@ def update_evaluation(eid: str, data: dict):
         if "modules" in data:
             modules = EvaluationModules(**data["modules"])
             e.total_points = _compute_total_points(modules)
-            e.modules = modules.model_dump()
+            mod_dict = modules.model_dump()
+            existing_mod = e.modules or {}
+            faculty_pos = data.get("faculty_position") or existing_mod.get("faculty_position") or "associate_professor"
+            pos_name = data.get("position") or existing_mod.get("position")
+            mod_dict["faculty_position"] = faculty_pos
+            if pos_name:
+                mod_dict["position"] = pos_name
+            if "part_a" in data:
+                mod_dict["part_a"] = data["part_a"]
+            elif "part_a" in existing_mod:
+                mod_dict["part_a"] = existing_mod["part_a"]
+            if "part_b" in data:
+                mod_dict["part_b"] = data["part_b"]
+            elif "part_b" in existing_mod:
+                mod_dict["part_b"] = existing_mod["part_b"]
+            if "part_c" in data:
+                mod_dict["part_c"] = data["part_c"]
+            elif "part_c" in existing_mod:
+                mod_dict["part_c"] = existing_mod["part_c"]
+            e.modules = mod_dict
 
         for field in [
             "status",
