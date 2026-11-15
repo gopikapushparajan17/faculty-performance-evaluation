@@ -634,7 +634,109 @@ def build_detailed_report(content, styles, modules) -> None:
     add_module("Industrial Visits", modules.industrial_visits)
     add_module("FDP Attended", modules.fdp_attended)
 
+def build_category_eligibility(content, styles, evaluation):
+    from app.database import compute_category_scores
 
+    result = compute_category_scores(
+        evaluation.modules,
+        evaluation.faculty_position
+    )
+
+    content.append(Paragraph("Category Breakdown & Eligibility", styles["Heading2"]))
+    content.append(Spacer(1, 8))
+
+    data = [
+        ["Category", "Actual Points", "Maximum Points", "65% Minimum", "Eligibility"],
+    ]
+
+    categories = [
+        ("Part A - TLP", result["tlp"]),
+        ("Part B - Research", result["research"]),
+        ("Part C - Others", result["others"]),
+    ]
+
+    for name, details in categories:
+        if name == "Part C - Others":
+            minimum = "No minimum"
+            status = "No minimum requirement"
+        else:
+            minimum = f'{details["threshold"]:.1f}'
+            status = "Eligible" if details["eligible"] else "Not Eligible"
+
+        data.append([
+            name,
+            f'{details["score"]:.1f}',
+            f'{details["max"]:.1f}',
+            minimum,
+            status,
+        ])
+
+    overall_status = (
+        "Eligible" if result["overall_eligible"] else "Not Eligible"
+    )
+
+    data.append([
+        "Overall Eligibility",
+        "",
+        "",
+        "",
+        overall_status,
+    ])
+
+    
+    cell_style = ParagraphStyle(
+        "EligibilityCell",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10,
+        alignment=TA_CENTER,
+    )
+
+    header_style = ParagraphStyle(
+        "EligibilityHeader",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        textColor=HEADER_TEXT,
+    )
+
+    formatted_data = []
+
+    for row_index, row in enumerate(data):
+        style = header_style if row_index == 0 else cell_style
+        formatted_data.append([
+            Paragraph(str(value), style) for value in row
+        ])
+
+    table = Table(
+        formatted_data,
+        colWidths=[
+            1.35 * inch,
+            0.95 * inch,
+            1.15 * inch,
+            1.05 * inch,
+            1.45 * inch,
+        ],
+        repeatRows=1,
+    )
+
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), HEADER_BLUE),
+        ("BACKGROUND", (0, 1), (-1, -2), colors.white),
+        ("BACKGROUND", (0, -1), (-1, -1), LABEL_BG),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+
+    content.append(table)
+    content.append(Spacer(1, 16))
 
 def generate_evaluation_pdf(filepath, evaluation, faculty):
     doc = SimpleDocTemplate(
@@ -656,13 +758,18 @@ def generate_evaluation_pdf(filepath, evaluation, faculty):
     build_title(content, styles)
     build_faculty_details(content, styles, evaluation, faculty)
 
-    # Start Performance Summary on a new page
+   # Page 2: Performance Summary and Signatures
     content.append(PageBreak())
 
     build_summary_table(content, styles, modules, evaluation.total_points)
     build_signature_section(content, styles)
 
+    
+    # Category Breakdown & Eligibility before detailed report
     content.append(PageBreak())
+    build_category_eligibility(content, styles, evaluation)
+
+    # Detailed Parts A, B and C
     build_detailed_report(content, styles, modules)
 
     doc.build(content)
