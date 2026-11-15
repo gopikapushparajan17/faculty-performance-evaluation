@@ -1,0 +1,84 @@
+/* FACULTYEVAL V3 — THE ACADEMIC ATELIER
+   Editorial architecture, high-contrast typography, restrained gradient accents. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap');
+:root{
+  --ink:#111b2c;--ink-soft:#34435a;--muted:#6e7889;--muted-light:#9ba4b2;
+  --paper:#f3f4f6;--surface:#fff;--surface-alt:#e9edf2;--line:#dce1e8;--line-strong:#c5ced9;
+  --accent:#5b5be7;--accent-soft:#ececff;--forest:#111c32;--success:#287a60;--warning:#a66b26;--danger:#b54b53;
+  --primary:#111c32;--secondary:#5b5be7;--border:#dce1e8;--border-light:#e9edf2;--text:#111b2c;--text-muted:#6e7889;--text-label:#526176;--text-dark:#111b2c;--white:#fff;--error:#b54b53;
+  --shadow:0 18px 50px rgba(17,28,50,.08);--serif:'Playfair Display',Georgia,serif;--mono:'IBM Plex Mono',monospace;
+}
+body{font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.62;color:var(--ink);background:var(--paper)}
+button,input,select,textarea{font-size:15px}
+/* Navigation becomes a quiet instrument, not a widget column. */
+.sidebar{width:264px;min-width:264px;padding:34px 22px 22px;background:linear-gradient(160deg,#101b31 0%,#172944 54%,#202c4a 100%);color:#f8f9fc;border-right:1px solid rgba(255,255,255,.08)}
+.brand-lockup{padding:0 8px 30px;gap:14px;border-bottom:1px solid rgba(255,255,255,.14)}
+.brand-symbol{width:46px;height:46px;border:1px solid rgba(210,214,255,.42);border-radius:13px;color:#d8d8ff;background:linear-gradient(145deg,rgba(112,112,255,.22),rgba(255,255,255,.025));font-size:20px}
+.brand-name{font-family:'Playfair Display',serif;font-size:29px;letter-spacing:-.9px}.brand-name span{color:#b9b8ff}
+.brand-caption{font:9px 'DM Sans',sans-serif;letter-spacing:2.4px;color:#aeb8cc}
+.sidebar-section-label{margin:38px 10px 13px;color:#8f9bb3;font:700 10px 'DM Sans',sans-serif;letter-spacing:2.1px}
+.sidebar-nav{gap:7px}.nav-link{min-height:49px;padding:0 14px;border:0;border-radius:10px;color:#c2cbda;font-size:14px;font-weight:600;position:relative}
+.nav-link.active{color:#fff;background:linear-gradient(100deg,rgba(105,105,255,.27),rgba(105,105,255,.06));box-shadow:inset 3px 0 #aaa9ff}
+.nav-link.active>svg:first-child{color:#c5c4ff}.nav-link:hover{background:rgba(255,255,255,.07)}.nav-chevron{font-size:10px}
+.sidebar-note{display:none!important}.sidebar-bottom{margin-top:auto}.sidebar-year{padding:16px 9px 20px;border-bottom:1px solid rgba(255,255,255,.14);font-size:12px;color:#b6c0d0}.year-dot{background:#a9a7ff;width:7px;height:7px}
+.sidebar-user{padding:19px 5px 0;gap:12px}.avatar{width:40px;height:40px;flex-basis:40px;background:linear-gradient(145deg,#d9d8ff,#9f9eff);color:#20264a;font:700 12px 'DM Sans',sans-serif}.sidebar-user-copy strong{font-size:13px}.sidebar-user-copy span{font-size:12px;color:#aeb9cb}.logout-icon{border-radius:9px;color:#c4c9f2}
+.workspace{background:var(--paper)}.topbar{height:64px;flex-basis:64px;padding:0 48px;background:rgba(255,255,255,.78);border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
+.breadcrumb{font:700 10px 'DM Sans',sans-serif;letter-spacing:1.4px;color:#929bad}.breadcrumb strong{font:600 13px 'DM Sans',sans-serif;color:#27344a}.topbar-meta{font-size:12px;color:#7e899b}
+.main{max-width:1720px;padding:48px 54px 30px}.page-title{font:600 clamp(38px,4vw,54px)/1.05 'Playfair Display',serif;letter-spacing:-1.7px;margin-bottom:32px;color:#131e31}
+.section{margin-top:44px}.section-title{font:600 28px/1.15 'Playfair Display',serif;letter-spacing:-.5px;margin-bottom:19px}
+/* Surfaces: less boxes, stronger editorial rules. */
+.card,.evaluation-card,.module-card{border:1px solid var(--line);border-radius:15px;background:var(--surface);box-shadow:0 6px 24px rgba(21,32,52,.035)}
+.card-body{padding:28px}.evaluation-card{padding:24px 27px;border-radius:14px}.evaluation-card:hover{border-color:#a8a7ff;transform:translateY(-3px);box-shadow:0 18px 38px rgba(34,39,89,.09)}.evaluation-card h3{font:600 24px 'Playfair Display',serif}
+.btn{min-height:44px;padding:11px 18px;border-radius:9px;font-size:14px;font-weight:700}.btn-primary{background:linear-gradient(115deg,#5556df,#7775f5);border-color:transparent;box-shadow:0 7px 18px rgba(91,91,231,.2)}.btn-primary:hover{background:linear-gradient(115deg,#4849cf,#6866e8)}.btn-secondary{background:#17243d;color:white;border-color:#17243d}.btn-outline{border-color:#cbd2df;background:#fff;color:#27344a}.btn-warning{background:#fff3df;color:#87551e;border-color:#f1d6a9}.btn-danger{background:#fff0f0;color:#a13e49;border-color:#efc4c7}
+.input,select.input,textarea.input{min-height:48px;padding:12px 14px;border:1px solid #cbd3df;border-radius:9px;background:#fff;font-size:15px;color:#17243a}.form-label{font-size:14px!important;font-weight:700!important;color:#46536a!important;letter-spacing:.1px!important}
+/* Metrics: typographic data, not a row of tiny cards. */
+.stats-grid,.hod-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.stat-card{min-height:138px;padding:24px 28px;text-align:left;background:transparent;border:0;border-right:1px solid var(--line);border-radius:0;cursor:pointer;transition:background .2s}
+.stat-card:last-child{border-right:0}.stat-card:hover{background:linear-gradient(135deg,#f5f4ff,#fff)}.stat-card h3{font:600 46px/.95 'Playfair Display',serif;color:#17243b;margin:0 0 12px}.stat-card p{font-size:14px;color:#5c687c;font-weight:700;margin:0}.stat-card span{display:inline-block;margin-top:8px;color:#5b5be7;font-size:12px;font-weight:700}
+/* HOD: the count strip is the filter navigation. Do not repeat approved/rejected lists below it. */
+.hod-stats-grid{grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:34px}.hod-stats-grid .stat-card{min-height:112px;padding:19px 20px}.hod-stats-grid .stat-card h3{font-size:38px;margin-bottom:7px}.hod-stats-grid .stat-card p{font-size:12px}.hod-stats-grid .stat-card span{font-size:11px;margin-top:4px}
+.hod-archive-section{display:none!important}
+/* Tables become clean record ledgers. */
+.table-wrap{overflow:auto;border-radius:14px;border:1px solid var(--line);background:#fff}table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}thead th{padding:16px 18px;background:#f3f5f8;color:#667287;text-align:left;font:700 10px 'DM Sans',sans-serif;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid var(--line)}tbody td{padding:17px 18px;border-bottom:1px solid #edf0f4;color:#27344a;font-size:14px}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fafaff}.td-muted{text-align:center;color:#8c96a5;padding:32px}
+/* Evaluation view: one editorial scoreplate, one restrained accent gradient. */
+.eval-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:18px}.eval-status-list{display:flex;gap:0;flex-wrap:wrap;margin:0 0 24px;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:#fff}.eval-status-dot{font-size:12px!important;font-weight:700!important;color:#929bad!important;padding:5px 14px!important;border-right:1px solid var(--line)}.eval-status-dot:last-child{border:0}.eval-status-dot.active{color:#4f50d4!important}
+.score-summary{gap:0!important;overflow:hidden;border-radius:17px;margin-bottom:25px}.total-score-card,.status-card{min-height:190px!important;padding:30px 34px!important;border-radius:0!important}.total-score-card{background:linear-gradient(135deg,#17243d 0%,#283b62 58%,#4b4bb6 100%)!important;color:#fff!important}.total-score-card h2,.status-card h2{font-size:13px!important;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.72)!important}.total-score-card h1{font:600 66px/.95 'Playfair Display',serif!important;color:white!important}.total-score-card p{font-size:14px!important;color:#d5d9f5!important}.status-card{background:linear-gradient(135deg,#ecebff,#d8d9ff)!important;color:#272c62!important}.status-card h1{font:700 30px 'DM Sans',sans-serif!important;color:#34358b!important}.status-card h2{color:#6566a2!important}
+/* Inline legacy category panels are unified into a single tonal system. */
+.score-summary~div [style*="background-color: rgb(239, 246, 255)"],.score-summary~div [style*="background-color: rgb(245, 243, 255)"],.score-summary~div [style*="background-color: rgb(236, 253, 245)"]{background:linear-gradient(145deg,#f4f4ff,#fff)!important;border:1px solid #dcdcff!important;border-radius:14px!important}
+.scores-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 30px}.scores-grid>div{padding:13px 4px;border-bottom:1px solid #e8ebf1;font-size:15px}.scores-grid>div:nth-child(odd){color:#526078}.scores-grid>div:nth-child(even){text-align:right;font-weight:800;color:#1d2b46}
+/* Evaluation form: workbench rather than accordion stack. */
+.eval-tabs{position:sticky;top:0;z-index:8;background:rgba(243,244,246,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);padding:10px 0!important}
+.eval-tab-btn{min-height:54px!important;border-radius:10px!important;font-size:14px!important;font-weight:800!important;letter-spacing:.1px!important;padding:14px 20px!important}
+.module-card{border-radius:13px!important;overflow:hidden;margin-bottom:16px!important}.module-card-header{padding:20px 22px!important;background:linear-gradient(90deg,#f5f6fa,#fff)!important}.module-card-body{padding:24px!important}.module-card h3,.module-card-header h3{font-size:19px!important}.module-card p,.module-card label{font-size:15px!important;line-height:1.65}.module-card input,.module-card select,.module-card textarea{min-height:48px!important;font-size:15px!important;border-radius:9px!important}
+/* Distinctive upload surfaces */
+.proof-upload,.upload-zone,[class*="upload"]{border-radius:12px}.proof-upload{background:linear-gradient(135deg,#f6f6ff,#fff)!important;border:1.5px dashed #aaa9ef!important;padding:22px!important}
+/* Empty states and messages */
+.error-card{border-left:4px solid var(--danger);border-radius:12px}.loading-text{font-size:15px}
+/* Footer and details */
+.app-footer{font:700 9px 'DM Sans',sans-serif;letter-spacing:1.3px;color:#9aa3b1;border-color:var(--line)}
+/* Login becomes cinematic and typographic. */
+.login-story{background:radial-gradient(circle at 78% 25%,rgba(119,117,245,.38),transparent 29%),linear-gradient(145deg,#101b31 0%,#1b2c4d 58%,#33348a 100%)}.login-story::before{opacity:.08}.login-brand-mark{border-radius:12px;background:rgba(255,255,255,.06)}.story-content h1{font-family:'Playfair Display',serif;font-size:clamp(58px,6.4vw,88px);line-height:.98}.story-content p{font-size:16px;line-height:1.8}.login-panel{background:linear-gradient(145deg,#fff 0%,#f4f5fa 100%)}.login-title{font:600 58px/.98 'Playfair Display',serif}.login-subtitle{font-size:15px}.login-form .form-label{font:700 12px 'DM Sans',sans-serif!important;letter-spacing:.7px}.login-field .input{min-height:56px;font-size:15px;border-radius:10px}.login-submit{min-height:54px;border-radius:10px;background:linear-gradient(110deg,#5556df,#7775f5)}
+/* Responsive */
+@media(max-width:1100px){.sidebar{width:232px;min-width:232px}.main{padding:34px 30px}.hod-stats-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.hod-stats-grid .stat-card:nth-child(3){border-right:0}.hod-stats-grid .stat-card:nth-child(n+4){border-top:1px solid var(--line)}}
+@media(max-width:760px){.sidebar{width:100%;min-width:0;padding:14px 18px;background:linear-gradient(100deg,#101b31,#263766)}.brand-lockup{padding-bottom:8px;border:0}.sidebar-section-label,.sidebar-year,.sidebar-user-copy,.logout-icon{display:none}.sidebar-nav{position:absolute;right:14px;top:13px}.nav-link{min-height:38px}.sidebar-bottom{position:absolute;right:16px;top:14px}.sidebar-user{padding:0}.avatar{width:32px;height:32px;flex-basis:32px}.main{padding:27px 17px}.topbar{padding:0 18px}.page-title{font-size:38px}.stats-grid,.hod-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hod-stats-grid .stat-card{border-top:1px solid var(--line)}.stat-card{min-height:108px;padding:16px}.stat-card h3{font-size:36px}.eval-header{display:block}.score-summary{grid-template-columns:1fr}.total-score-card,.status-card{min-height:145px!important}.scores-grid{grid-template-columns:1fr}.login-page{display:block}.login-story{min-height:380px;padding:28px}.login-panel{min-height:600px;padding:26px}.story-content h1{font-size:56px}}
+@media(max-width:440px){.page-title{font-size:33px}.main{padding:22px 13px}.stats-grid,.hod-stats-grid{grid-template-columns:1fr}.stat-card{border-right:0!important}.login-title{font-size:48px}}
+/* HOD status navigation: a single ledger filter, not five competing metric cards. */
+.hod-stats-grid{display:flex;align-items:stretch;gap:0;padding:0 8px;background:transparent;border:0;border-bottom:1px solid #cfd5e0;border-radius:0;box-shadow:none;overflow-x:auto}
+.hod-stats-grid .stat-card{flex:1 0 145px;min-height:78px;padding:13px 18px;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-content:center;align-items:center;column-gap:12px;border:0;border-right:1px solid #dce1e8;background:transparent;text-align:left}
+.hod-stats-grid .stat-card:last-child{border-right:0}
+.hod-stats-grid .stat-card h3{grid-row:1/3;grid-column:1;font:600 31px/1 'Playfair Display',serif;color:#5657d9;margin:0}
+.hod-stats-grid .stat-card p{grid-column:2;grid-row:1;font-size:12px;color:#34435a;margin:0;white-space:nowrap}
+.hod-stats-grid .stat-card span{grid-column:2;grid-row:2;margin:2px 0 0;font-size:10px;color:#7a8496}
+.hod-stats-grid .stat-card:hover{background:linear-gradient(105deg,rgba(91,91,231,.09),transparent);box-shadow:inset 0 -2px #7776ef}
+.hod-archive-section{display:none!important}
+/* The queue is the focus: each pending record reads as a single review docket. */
+.hod-queue-section .evaluation-card{display:grid;grid-template-columns:minmax(180px,1.4fr) repeat(3,minmax(90px,.6fr)) auto;align-items:center;gap:18px;padding:19px 22px;border:0;border-bottom:1px solid #e2e6ed;border-radius:0;box-shadow:none;background:transparent}
+.hod-queue-section .evaluation-card:hover{background:#fff;border-color:#e2e6ed;transform:none;box-shadow:0 8px 22px rgba(17,28,50,.045)}
+.hod-queue-section .evaluation-card h3{grid-column:1;grid-row:1;margin:0;font:600 19px 'Playfair Display',serif}
+.hod-queue-section .evaluation-card p{margin:0;font-size:13px;color:#667287}
+.hod-queue-section .evaluation-card .card-actions{grid-column:5;grid-row:1/5;margin:0;gap:7px}
+.hod-queue-section .evaluation-card .card-actions .btn{min-height:36px;padding:7px 11px;font-size:12px}
+@media(max-width:900px){.hod-queue-section .evaluation-card{grid-template-columns:1fr 1fr;gap:10px}.hod-queue-section .evaluation-card h3{grid-column:1/-1}.hod-queue-section .evaluation-card .card-actions{grid-column:1/-1;grid-row:auto}}
+
+.hod-queue-section .evaluation-card p:nth-of-type(1){grid-column:2;grid-row:1}.hod-queue-section .evaluation-card p:nth-of-type(2){grid-column:3;grid-row:1}.hod-queue-section .evaluation-card p:nth-of-type(3){grid-column:4;grid-row:1}
+@media(max-width:900px){.hod-queue-section .evaluation-card p:nth-of-type(1),.hod-queue-section .evaluation-card p:nth-of-type(2),.hod-queue-section .evaluation-card p:nth-of-type(3){grid-column:auto;grid-row:auto}}

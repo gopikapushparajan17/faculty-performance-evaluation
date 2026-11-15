@@ -396,7 +396,7 @@ const refreshHodLists = async () => {
                 </Link>
               </div>
 
-              <section className="section">
+              <section className="section hod-queue-section">
                 <h2 className="section-title">Pending Evaluations</h2>
 
                 {pending.length === 0 ? (
@@ -508,7 +508,7 @@ const refreshHodLists = async () => {
                 )}
               </section>
 
-              <section className="section">
+              <section className="section hod-archive-section">
                 <h2 className="section-title">Approved Evaluations</h2>
 
                 <div className="card table-wrap">
@@ -589,7 +589,7 @@ const refreshHodLists = async () => {
                 )}
               </section>
 
-              <section className="section">
+              <section className="section hod-archive-section">
                 <h2 className="section-title">Rejected Evaluations</h2>
 
                 <div className="card table-wrap">
