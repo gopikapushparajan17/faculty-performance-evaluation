@@ -160,7 +160,7 @@ def build_summary_table(content, styles, modules, total_points) -> None:
         ["MOOC Courses", getattr(getattr(modules, "mooc_courses", None), "points", 0)],
         ["Department Activities", getattr(modules.departmental_activities, "points", 0)],
         ["Institutional Activities", getattr(modules.institutional_activities, "points", 0)],
-        ["Journal Index", getattr(modules.journal_index, "points", 0)],
+        ["Journal Index", getattr(getattr(modules, "journal_index", None), "points", 0)],
         ["Conference Articles", getattr(modules.conference_articles, "points", 0)],
         ["Book Chapters", getattr(modules.book_chapters, "points", 0)],
         ["Books", getattr(modules.books, "points", 0)],
@@ -172,6 +172,7 @@ def build_summary_table(content, styles, modules, total_points) -> None:
         ["MOU Signed", getattr(getattr(modules, "mou_signed", None), "points", 0)],
         ["HOD/Dean Role", getattr(getattr(modules, "hod_dean_role", None), "points", 0)],
         ["Industrial Visits", getattr(getattr(modules, "industrial_visits", None), "points", 0)],
+        ["FDP Attended", getattr(getattr(modules, "fdp_attended", None), "points", 0)],
         ["Total Points (Raw / Uncapped)", total_points],
     ]
 
@@ -182,16 +183,40 @@ def build_summary_table(content, styles, modules, total_points) -> None:
 
 def build_signature_section(content, styles) -> None:
     heading = _section_heading_style(styles)
+
+    content.append(Spacer(1, 25))
+    content.append(Paragraph(
+        "<b>Signatures and Approval</b>",
+        heading
+    ))
     content.append(Spacer(1, 35))
-    content.append(Paragraph("<b>Approved By HOD</b>", heading))
-    content.append(Spacer(1, 10))
-    content.append(
-        Paragraph(
-            "HOD Signature: ________________________",
-            styles["Normal"],
-        )
+
+    signature_data = [
+        [
+            Paragraph("<b>Faculty Signature</b>", styles["Normal"]),
+            Paragraph("<b>HOD Signature</b>", styles["Normal"]),
+            Paragraph("<b>Principal Signature</b>", styles["Normal"]),
+        ],
+        [
+            Paragraph("________________________<br/>Date: __________", styles["Normal"]),
+            Paragraph("________________________<br/>Date: __________", styles["Normal"]),
+            Paragraph("________________________<br/>Date: __________", styles["Normal"]),
+        ],
+    ]
+
+    table = Table(
+        signature_data,
+        colWidths=[2.3 * inch, 2.3 * inch, 2.3 * inch],
     )
 
+    table.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+    content.append(table)
 
 def _append_proof_link(content, styles, url):
     if url.startswith("/uploads/"):
@@ -498,23 +523,42 @@ def build_detailed_report(content, styles, modules) -> None:
 
         # Journal Index
         if title == "Journal Index":
-            rows = []
+            journal_data = module_dict(module_data)
 
-            if getattr(module_data, "title", ""):
-                rows.append(("Title", module_data.title))
-
-            if getattr(module_data, "scopus_link", ""):
-                rows.append(("Scopus Link", module_data.scopus_link))
+            rows = [
+                ("Title", journal_data.get("title")),
+                ("DOI", journal_data.get("doi")),
+                ("ISSN", journal_data.get("issn")),
+                ("eISSN", journal_data.get("eissn")),
+                ("Scopus Link", journal_data.get("scopus_link")),
+                ("Declaration Accepted", journal_data.get("declaration_accepted")),
+                ("Index Value", journal_data.get("value")),
+            ]
 
             make_table(rows)
 
-            verification = getattr(module_data, "verification", None)
-
+            verification = journal_data.get("verification")
             if verification:
                 make_table(verification_rows(verification))
 
             return
+        if title == "HOD / Dean Role":
+            role_data = module_dict(module_data)
 
+            rows = [
+                ("Role Held", role_data.get("held_role")),
+                ("Role Title", role_data.get("role_title")),
+                ("Details", role_data.get("details")),
+            ]
+
+            make_table(rows)
+
+            proof = role_data.get("proof_file")
+            if proof:
+                make_table([("Proof", proof_paragraph(proof))])
+
+            return
+        
         # All remaining modules have entries.
         entries = getattr(module_data, "entries", []) or []
 
@@ -561,19 +605,36 @@ def build_detailed_report(content, styles, modules) -> None:
             if verification:
                 make_table(verification_rows(verification))
 
-    # Every detailed module uses the SAME aligned two-column table layout.
+        # ---------------- PART A ----------------
+    content.append(Paragraph("PART A – TLP", styles["Heading2"]))
+
     add_module("Student Feedback", modules.student_feedback)
-    add_module("Journal Index", getattr(modules, "journal_index", None))
+    add_module("MOOC Courses", modules.mooc_courses)
+    add_module("Department Activities", modules.departmental_activities)
+    add_module("Institutional Activities", modules.institutional_activities)
+
+    # ---------------- PART B ----------------
+    content.append(Paragraph("PART B – RESEARCH AND ACADEMIC CONTRIBUTIONS", styles["Heading2"]))
+
+    add_module("Journal Index", modules.journal_index)
     add_module("Conference Articles", modules.conference_articles)
     add_module("Book Chapters", modules.book_chapters)
     add_module("Books", modules.books)
     add_module("IPR", modules.ipr)
     add_module("Funded Projects", modules.funded_projects)
-    add_module("FDP Attended", modules.fdp_attended)
-    add_module("Talks Delivered", modules.talks_delivered)
-    add_module("Department Activities", modules.departmental_activities)
-    add_module("Institutional Activities", modules.institutional_activities)
+    add_module("PhD Awarded", modules.phd_awarded)
+
+    # ---------------- PART C ----------------
+    content.append(Paragraph("PART C – INSTITUTIONAL CONTRIBUTIONS", styles["Heading2"]))
+
     add_module("FDP Organized", modules.fdp_organized)
+    add_module("Talks Delivered", modules.talks_delivered)
+    add_module("MOU Signed", modules.mou_signed)
+    add_module("HOD / Dean Role", modules.hod_dean_role)
+    add_module("Industrial Visits", modules.industrial_visits)
+    add_module("FDP Attended", modules.fdp_attended)
+
+
 
 def generate_evaluation_pdf(filepath, evaluation, faculty):
     doc = SimpleDocTemplate(
@@ -594,10 +655,14 @@ def generate_evaluation_pdf(filepath, evaluation, faculty):
 
     build_title(content, styles)
     build_faculty_details(content, styles, evaluation, faculty)
-    build_summary_table(content, styles, modules, evaluation.total_points)
-    build_signature_section(content, styles)
+
+    # Start Performance Summary on a new page
     content.append(PageBreak())
 
+    build_summary_table(content, styles, modules, evaluation.total_points)
+    build_signature_section(content, styles)
+
+    content.append(PageBreak())
     build_detailed_report(content, styles, modules)
 
     doc.build(content)

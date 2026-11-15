@@ -310,7 +310,13 @@ def get_evaluation(eid: str):
 
         faculty = get_faculty(str(e.faculty_id))
 
-        mod_dict = e.modules or {}
+        mod_dict = dict(e.modules or {})
+
+        # Handle legacy evaluations with null Part A/B/C data
+        for part in ("part_a", "part_b", "part_c"):
+            if mod_dict.get(part) is None:
+                mod_dict[part] = {}
+
         pos = mod_dict.get("faculty_position") or "associate_professor"
         position_name = mod_dict.get("position")
         return Evaluation(
@@ -367,6 +373,11 @@ def list_evaluations_all():
 
         for e in evaluations:
             faculty = get_faculty(str(e.faculty_id))
+            modules_data = dict(e.modules or {})
+
+            for part in ("part_a", "part_b", "part_c"):
+                if modules_data.get(part) is None:
+                    modules_data[part] = {}
 
             result.append(
                 Evaluation(
@@ -376,7 +387,7 @@ def list_evaluations_all():
                     ef_id=str(e.ef_id),
                     academic_year=e.academic_year or "",
                     status=e.status or "draft",
-                    modules=EvaluationModules(**(e.modules or {})),
+                    modules=EvaluationModules(**modules_data),
                     total_points=e.total_points or 0,
                     approved_at=e.approved_at,
                     approved_by=e.approved_by,
@@ -456,6 +467,13 @@ def list_evaluations_paginated(
                 phone_number=faculty_db.phone,
             )
 
+            modules_data = dict(e.modules or {})
+
+            # Older database records may contain NULL for these fields.
+            for part in ("part_a", "part_b", "part_c"):
+                if modules_data.get(part) is None:
+                    modules_data[part] = {}
+
             result.append(
                 Evaluation(
                     id=str(e.id),
@@ -464,7 +482,7 @@ def list_evaluations_paginated(
                     ef_id=str(e.ef_id),
                     academic_year=e.academic_year or "",
                     status=e.status or "draft",
-                    modules=EvaluationModules(**(e.modules or {})),
+                    modules=EvaluationModules(**modules_data),
                     total_points=e.total_points or 0,
                     approved_at=e.approved_at,
                     approved_by=e.approved_by,

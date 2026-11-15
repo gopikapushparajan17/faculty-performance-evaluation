@@ -1534,7 +1534,9 @@ export default function EvaluationView() {
     </>
   )}
 
-{(user?.role === 'faculty' || user?.role === 'hod') && (
+{(user?.role === 'faculty' ||
+user?.role === 'hod' ||
+user?.role === 'principal') && (
   <button
     type="button"
     className="btn btn-primary"

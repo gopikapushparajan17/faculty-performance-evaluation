@@ -76,8 +76,20 @@ export default function Dashboard() {
           setMine(mineRes.data)
           setProfile(profileRes.data)
         }
-      } catch {
-        setMessage({ type: 'error', text: 'Failed to load dashboard data.' })
+      } catch (error) {
+        console.error('HOD Dashboard loading error:', error)
+
+        if (error && typeof error === 'object' && 'response' in error) {
+          console.error(
+            'API response:',
+            (error as { response?: { status?: number; data?: unknown } }).response
+          )
+        }
+
+        setMessage({
+          type: 'error',
+          text: 'Failed to load dashboard data. Check browser console.',
+        })
         setPending([])
         setApproved([])
         setRejected([])
