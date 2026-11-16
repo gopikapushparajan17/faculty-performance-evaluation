@@ -22,3 +22,12 @@ S3_BUCKET = os.environ.get("S3_BUCKET", "")
 S3_PREFIX = os.environ.get("S3_PREFIX", "evaluation-proofs")
 S3_USE_PATH_STYLE = os.environ.get("S3_USE_PATH_STYLE", "").lower() in ("1", "true")
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL") or None
+
+# Email / SMTP (Password Reset)
+SMTP_HOST = os.environ.get("SMTP_HOST", "localhost")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL", "no-reply@facultyeval.edu")
+SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")

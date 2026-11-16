@@ -33,6 +33,7 @@ from app.models import (
     PhDAwardedEntry,
     FDPOrganizedData,
     FDPOrganizedEntry,
+    ConferenceOrganizedData,
     TalksData,
     TalkEntry,
     MOUSignedData,
@@ -238,10 +239,13 @@ def test_research_doi_normalization_and_duplicate_check():
     }
 
     mock_user = MagicMock()
+    mock_user.id = 99
+    mock_user.user_id = 99
     mock_user.name = "Dr. Alice Smith"
     mock_user.employee_id = "EMP099"
 
     db = MagicMock()
+    db.query.return_value.all.return_value = [existing_eval]
     db.query.return_value.filter.return_value.all.return_value = [existing_eval]
     db.query.return_value.filter.return_value.first.return_value = mock_user
 
@@ -265,6 +269,70 @@ def test_research_doi_normalization_and_duplicate_check():
     )
     assert dup_title is not None
     assert dup_title["employee_id"] == "EMP099"
+
+
+def test_verify_route_blocks_duplicate_and_bypasses_external_verifier():
+    from app.routes.publications import verify_publication_route, PublicationVerifyRequest
+    from app.models import User
+
+    mock_user = User(id="101", email="user101@demo.com", name="Dr. Bob", role="faculty")
+    dup_data = {
+        "duplicate": True,
+        "faculty_name": "Dr. Alice Smith",
+        "employee_id": "EMP099",
+    }
+
+    req = PublicationVerifyRequest(
+        doi="10.1109/TQC.2024.12345",
+        title="Quantum Computing Principles",
+        publication_url="https://doi.org/10.1109/TQC.2024.12345",
+    )
+
+    with patch("app.routes.publications.get_user_by_id", return_value=mock_user), \
+         patch("app.routes.publications.get_faculty_by_user_id", return_value=None), \
+         patch("app.routes.publications.check_journal_duplicate", return_value=dup_data), \
+         patch("app.routes.publications.verify_publication") as mock_external_verify:
+        with pytest.raises(HTTPException) as exc:
+            verify_publication_route(req, current_user=mock_user)
+
+        # Must return 409 status code
+        assert exc.value.status_code == 409
+        # Must contain the exact required message structure
+        detail = exc.value.detail
+        assert "⚠ Duplicate Publication Detected:" in detail
+        assert "Dr. Alice Smith" in detail
+        assert "EMP099" in detail
+        assert "Duplicate submissions across faculty accounts are not permitted." in detail
+        # CRITICAL: External verification MUST NOT be initiated!
+        assert not mock_external_verify.called
+
+
+def test_declaration_checkbox_scoring_sequence():
+    # 1. Publication verified, but declaration NOT accepted -> 0 marks
+    m_unchecked = EvaluationModules(
+        journal_index=JournalIndexData(
+            title="Verified Journal",
+            scopus_link="https://doi.org/10.1000/182",
+            declaration_accepted=False,
+            verification={"publication_found": True, "author_match": True, "scopus_status": "indexed"},
+        )
+    )
+    assert _compute_module_points(m_unchecked)["journal_index"] == 0
+
+    # 2. Publication verified, declaration accepted -> 30 marks
+    m_checked = EvaluationModules(
+        journal_index=JournalIndexData(
+            title="Verified Journal",
+            scopus_link="https://doi.org/10.1000/182",
+            declaration_accepted=True,
+            verification={"publication_found": True, "author_match": True, "scopus_status": "indexed"},
+        )
+    )
+    assert _compute_module_points(m_checked)["journal_index"] == 30
+
+    # 3. If faculty unchecks declaration, marks return to 0
+    m_checked.journal_index.declaration_accepted = False
+    assert _compute_module_points(m_checked)["journal_index"] == 0
 
 
 def test_research_funded_projects_scoring():
@@ -330,3 +398,416 @@ def test_others_scoring_parameters():
     ]
     m_visits = EvaluationModules(industrial_visits=IndustrialVisitsData(entries=visits))
     assert _compute_module_points(m_visits)["industrial_visits"] == 4  # 2 * 2
+
+
+def test_conferences_organized_dropdown_and_confirmation():
+    # 1. General Chair + Confirmed -> 5 marks
+    m_gen_confirmed = EvaluationModules(
+        conference_organized=ConferenceOrganizedData(role="General Chair", confirmed=True)
+    )
+    assert _compute_module_points(m_gen_confirmed)["conference_organized"] == 5
+
+    # 2. Session Chair + Confirmed -> 3 marks
+    m_sess_confirmed = EvaluationModules(
+        conference_organized=ConferenceOrganizedData(role="Session Chair", confirmed=True)
+    )
+    assert _compute_module_points(m_sess_confirmed)["conference_organized"] == 3
+
+    # 3. Role selected but NOT confirmed -> 0 marks
+    m_gen_unconfirmed = EvaluationModules(
+        conference_organized=ConferenceOrganizedData(role="General Chair", confirmed=False)
+    )
+    assert _compute_module_points(m_gen_unconfirmed)["conference_organized"] == 0
+
+    m_sess_unconfirmed = EvaluationModules(
+        conference_organized=ConferenceOrganizedData(role="Session Chair", confirmed=False)
+    )
+    assert _compute_module_points(m_sess_unconfirmed)["conference_organized"] == 0
+
+    # 4. Immediate update of Others category score
+    scores_unconfirmed = compute_category_scores(m_gen_unconfirmed, "associate_professor")
+    assert scores_unconfirmed["others"]["score"] == 0
+
+    scores_confirmed = compute_category_scores(m_gen_confirmed, "associate_professor")
+    assert scores_confirmed["others"]["score"] == 5
+
+    # 5. Existing FDP/Workshop scoring remains unchanged
+    m_combined = EvaluationModules(
+        fdp_organized=FDPOrganizedData(
+            entries=[FDPOrganizedEntry(name="Workshop", days=5, proof_file="/uploads/w.pdf")]
+        ),
+        conference_organized=ConferenceOrganizedData(role="General Chair", confirmed=True),
+    )
+    assert _compute_module_points(m_combined)["fdp_organized"] == 5
+    assert _compute_module_points(m_combined)["conference_organized"] == 5
+    scores_combined = compute_category_scores(m_combined, "associate_professor")
+    assert scores_combined["others"]["score"] == 10  # 5 + 5
+
+
+# ============================================================================
+# 5. JOURNAL DUPLICATE DETECTION — EXHAUSTIVE FORMAT & CROSS-ACCOUNT TESTS
+# ============================================================================
+def _make_faculty(fid, uid, name, emp_id):
+    f = MagicMock()
+    f.id = fid
+    f.user_id = uid
+    f.name = name
+    f.employee_id = emp_id
+    return f
+
+
+def _create_test_session(existing_evaluations, faculty_map):
+    db = MagicMock()
+
+    def query_se(model):
+        q = MagicMock()
+        model_name = str(model)
+        if "Evaluation" in model_name:
+            q.all.return_value = existing_evaluations
+            q.filter.return_value.all.return_value = existing_evaluations
+        elif "Faculty" in model_name:
+            def filter_se(*args, **kwargs):
+                fq = MagicMock()
+                fid = None
+                is_user_id = False
+                if args:
+                    if hasattr(args[0], "left") and getattr(args[0].left, "name", "") == "user_id":
+                        is_user_id = True
+                    if hasattr(args[0], "right"):
+                        try:
+                            fid = int(args[0].right.value)
+                        except Exception:
+                            pass
+                if is_user_id:
+                    res = next((f for f in faculty_map.values() if getattr(f, "user_id", None) == fid), None)
+                else:
+                    res = faculty_map.get(fid)
+                fq.first.return_value = res
+                return fq
+            q.filter.side_effect = filter_se
+            q.first.return_value = None
+        return q
+
+    db.query.side_effect = query_se
+    return db
+
+
+def test_duplicate_doi_number_in_one_and_url_in_another():
+    """
+    Test: One faculty enters DOI number (10.xxxx/xxxxx) and another faculty
+    enters DOI URL (https://doi.org/10.xxxx/xxxxx) for the same publication.
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Bob Jones", "EMP202")
+    faculty_map = {1: fac1, 2: fac2}
+
+    # Faculty 1 submitted with plain DOI number
+    ev1 = MagicMock(
+        id=11,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Quantum Error Correction",
+                "doi": "10.1016/j.jss.2023.111876",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Faculty 2 attempts to verify with full https URL
+    dup = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        doi="https://doi.org/10.1016/j.jss.2023.111876",
+        title="Quantum Error Correction",
+    )
+    assert dup is not None
+    assert dup["is_duplicate"] is True
+    assert dup["matched_by"] == "doi"
+    assert dup["faculty_name"] == "Dr. Alice Smith"
+    assert dup["employee_id"] == "EMP101"
+    assert (
+        dup["message"]
+        == "⚠ Duplicate Publication Detected: This publication has already been submitted for evaluation by Dr. Alice Smith (Employee ID: EMP101). Duplicate submissions across faculty accounts are not permitted."
+    )
+
+
+def test_duplicate_different_formatting_of_same_doi():
+    """
+    Test: Different formatting of the same DOI across accounts:
+    - http vs https
+    - www vs dx.doi.org vs doi.org
+    - trailing slashes and dots
+    - uppercase vs lowercase
+    - 'doi: 10.xxxx' prefix
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Charlie Brown", "EMP303")
+    faculty_map = {1: fac1, 2: fac2}
+
+    ev1 = MagicMock(
+        id=12,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Edge Intelligence",
+                "doi": "http://dx.doi.org/10.1109/ACCESS.2024.1234567/",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Variant A: doi: prefix with uppercase and trailing dot
+    dup_a = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        doi="doi: 10.1109/access.2024.1234567.",
+    )
+    assert dup_a is not None
+    assert dup_a["is_duplicate"] is True
+    assert dup_a["matched_by"] == "doi"
+
+    # Variant B: https://www.doi.org with multiple trailing slashes
+    dup_b = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        doi="https://www.doi.org/10.1109/ACCESS.2024.1234567///",
+    )
+    assert dup_b is not None
+    assert dup_b["is_duplicate"] is True
+
+    # Variant C: DOI provided via publication_url parameter
+    dup_c = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        publication_url="https://doi.org/10.1109/access.2024.1234567",
+    )
+    assert dup_c is not None
+    assert dup_c["is_duplicate"] is True
+
+
+def test_duplicate_issn_plus_title():
+    """
+    Test: Matching publication by title and ISSN (without DOI),
+    with different ISSN formatting (hyphenated vs plain).
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Dave Miller", "EMP404")
+    faculty_map = {1: fac1, 2: fac2}
+
+    ev1 = MagicMock(
+        id=13,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Advanced Neural Networks for Medical Imaging",
+                "issn": "0360-1315",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Candidate has unhyphenated ISSN and exact title
+    dup = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        title="Advanced Neural Networks for Medical Imaging",
+        issn="03601315",
+    )
+    assert dup is not None
+    assert dup["is_duplicate"] is True
+    assert dup["matched_by"] == "title"
+    assert dup["faculty_name"] == "Dr. Alice Smith"
+    assert dup["employee_id"] == "EMP101"
+
+
+def test_duplicate_eissn_plus_title():
+    """
+    Test: Matching publication by title and e-ISSN (without DOI),
+    handling 'X' checksum casing and spacing.
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Elena Rostova", "EMP505")
+    faculty_map = {1: fac1, 2: fac2}
+
+    ev1 = MagicMock(
+        id=14,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Cloud Computing Paradigms: A Modern Review",
+                "eissn": "1234-567X",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Candidate has eISSN with spaces and lowercase 'x'
+    dup = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        title="Cloud Computing Paradigms: A Modern Review",
+        eissn="1234 567x",
+    )
+    assert dup is not None
+    assert dup["is_duplicate"] is True
+    assert dup["matched_by"] == "title"
+
+
+def test_duplicate_same_title_with_different_formatting():
+    """
+    Test: Same publication title with differences in punctuation, casing,
+    and multiple spaces.
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Frank Castle", "EMP606")
+    faculty_map = {1: fac1, 2: fac2}
+
+    ev1 = MagicMock(
+        id=15,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Machine Learning in Higher Education: A Comprehensive Study!",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Candidate title: lowercase, dashes instead of colons, extra spaces, ending dot
+    dup = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        title="machine  learning   in higher education - a comprehensive study.",
+    )
+    assert dup is not None
+    assert dup["is_duplicate"] is True
+    assert dup["matched_by"] == "title"
+
+
+def test_two_different_articles_from_same_journal_not_treated_as_duplicate():
+    """
+    CRITICAL RULE:
+    Two different articles from the same journal MUST NOT be treated as duplicates
+    just because their ISSN or eISSN matches.
+    """
+    fac1 = _make_faculty(1, 1, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 2, "Dr. Grace Hopper", "EMP707")
+    faculty_map = {1: fac1, 2: fac2}
+
+    # Faculty 1 published Article Alpha in Journal of Systems & Software (ISSN 0164-1212)
+    ev1 = MagicMock(
+        id=16,
+        faculty_id=1,
+        ef_id=1,
+        modules={
+            "journal_index": {
+                "title": "Article Alpha: Automated Software Testing in DevOps",
+                "doi": "10.1016/j.jss.2023.111001",
+                "issn": "0164-1212",
+                "eissn": "1873-1228",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # Faculty 2 submits Article Beta in the SAME journal (same ISSN & eISSN),
+    # but different DOI and different title
+    dup_with_doi = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        doi="10.1016/j.jss.2024.112999",
+        title="Article Beta: Static Analysis in Safety Critical Systems",
+        issn="0164-1212",
+        eissn="1873-1228",
+    )
+    assert dup_with_doi is None, "Different articles from the same journal must NOT be flagged as duplicates"
+
+    # Faculty 2 submits another article in the same journal without DOI (different title)
+    dup_no_doi = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        title="Article Gamma: Architectural Smells in Microservices",
+        issn="0164-1212",
+        eissn="1873-1228",
+    )
+    assert dup_no_doi is None, "Different article titles in the same journal must NOT be flagged as duplicates"
+
+
+def test_duplicate_entered_in_another_faculty_account_and_own_account_allowed():
+    """
+    Test:
+    1. Publication submitted by another faculty account IS detected.
+    2. Exact warning message format is validated.
+    3. The same faculty member editing or submitting their own publication is NOT blocked.
+    """
+    fac1 = _make_faculty(1, 10, "Dr. Alice Smith", "EMP101")
+    fac2 = _make_faculty(2, 20, "Dr. Bob Jones", "EMP202")
+    faculty_map = {1: fac1, 2: fac2}
+
+    ev1 = MagicMock(
+        id=17,
+        faculty_id=1,
+        ef_id=10,
+        modules={
+            "journal_index": {
+                "title": "Cybersecurity in IoT Ecosystems",
+                "doi": "10.1109/JIOT.2024.3334444",
+            }
+        },
+    )
+    db = _create_test_session([ev1], faculty_map)
+
+    # 1. Other faculty (fac2) checks duplicate -> Detected
+    dup_other = check_journal_duplicate(
+        db,
+        faculty_id=2,
+        user_id=20,
+        doi="10.1109/JIOT.2024.3334444",
+        title="Cybersecurity in IoT Ecosystems",
+    )
+    assert dup_other is not None
+    assert dup_other["is_duplicate"] is True
+    assert dup_other["faculty_name"] == "Dr. Alice Smith"
+    assert dup_other["employee_id"] == "EMP101"
+    expected_msg = (
+        "⚠ Duplicate Publication Detected: This publication has already been submitted "
+        "for evaluation by Dr. Alice Smith (Employee ID: EMP101). "
+        "Duplicate submissions across faculty accounts are not permitted."
+    )
+    assert dup_other["message"] == expected_msg
+
+    # 2. Own account (fac1 by faculty_id=1) checks duplicate -> NOT flagged (allowed)
+    dup_own_by_fac = check_journal_duplicate(
+        db,
+        faculty_id=1,
+        doi="10.1109/JIOT.2024.3334444",
+        title="Cybersecurity in IoT Ecosystems",
+    )
+    assert dup_own_by_fac is None
+
+    # 3. Own account (fac1 by user_id=10) checks duplicate -> NOT flagged (allowed)
+    dup_own_by_user = check_journal_duplicate(
+        db,
+        user_id=10,
+        doi="10.1109/JIOT.2024.3334444",
+        title="Cybersecurity in IoT Ecosystems",
+    )
+    assert dup_own_by_user is None
+
+    # 4. Editing the existing evaluation (evaluation_id=17) -> NOT flagged (allowed)
+    dup_same_eval = check_journal_duplicate(
+        db,
+        current_evaluation_id=17,
+        doi="10.1109/JIOT.2024.3334444",
+        title="Cybersecurity in IoT Ecosystems",
+    )
+    assert dup_same_eval is None
+
+
+

@@ -168,6 +168,7 @@ def build_summary_table(content, styles, modules, total_points) -> None:
         ["Funded Projects", getattr(modules.funded_projects, "points", 0)],
         ["PhD Awarded", getattr(getattr(modules, "phd_awarded", None), "points", 0)],
         ["FDP Organized", getattr(modules.fdp_organized, "points", 0)],
+        ["Conferences Organised", getattr(getattr(modules, "conference_organized", None), "points", 0)],
         ["Talks Delivered", getattr(modules.talks_delivered, "points", 0)],
         ["MOU Signed", getattr(getattr(modules, "mou_signed", None), "points", 0)],
         ["HOD/Dean Role", getattr(getattr(modules, "hod_dean_role", None), "points", 0)],
@@ -628,6 +629,8 @@ def build_detailed_report(content, styles, modules) -> None:
     content.append(Paragraph("PART C – INSTITUTIONAL CONTRIBUTIONS", styles["Heading2"]))
 
     add_module("FDP Organized", modules.fdp_organized)
+    if hasattr(modules, "conference_organized") and modules.conference_organized:
+        add_module("Conferences Organised", modules.conference_organized)
     add_module("Talks Delivered", modules.talks_delivered)
     add_module("MOU Signed", modules.mou_signed)
     add_module("HOD / Dean Role", modules.hod_dean_role)

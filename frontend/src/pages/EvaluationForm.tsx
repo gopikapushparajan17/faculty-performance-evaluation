@@ -17,6 +17,7 @@ import {
   fundedPoints,
   phdAwardedPoints,
   fdpOrganizedPoints,
+  conferenceOrganizedPoints,
   talksPoints,
   mouSignedPoints,
   hodDeanPoints,
@@ -45,6 +46,7 @@ const defaultModules: EvaluationModules = {
   funded_projects: { entries: [], points: 0 },
   phd_awarded: { entries: [], points: 0 },
   fdp_organized: { entries: [], points: 0 },
+  conference_organized: { role: '', confirmed: false, details: '', proof_file: '', points: 0 },
   talks_delivered: { entries: [], points: 0 },
   mou_signed: { entries: [], points: 0 },
   hod_dean_role: { held_role: false, role_title: '', proof_file: '', points: 0 },
@@ -132,7 +134,11 @@ export default function EvaluationForm() {
   const [selectedPosition, setSelectedPosition] = useState<FacultyPosition | ''>(editId ? 'associate_professor' : '')
   const [setupError, setSetupError] = useState('')
   const [activeTab, setActiveTab] = useState<'part_a' | 'part_b' | 'part_c'>('part_a')
-  const [journalDuplicate, setJournalDuplicate] = useState<{ is_duplicate: boolean; duplicate_by?: { faculty_name: string; employee_id: string } } | null>(null)
+  const [journalDuplicate, setJournalDuplicate] = useState<{
+    is_duplicate: boolean
+    duplicate_by?: { faculty_name: string; employee_id: string }
+    message?: string
+  } | null>(null)
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -147,20 +153,6 @@ export default function EvaluationForm() {
 
   const modules = useWatch({ control: form.control, name: 'modules', defaultValue: defaultModules })
   const facultyPosition = (useWatch({ control: form.control, name: 'faculty_position' }) ?? 'associate_professor') as FacultyPosition
-
-  const checkDuplicate = async (doiVal?: string, titleVal?: string) => {
-    try {
-      const { data } = await api.post('/evaluations/check-journal-duplicate', {
-        faculty_id: form.getValues('faculty_id'),
-        doi: doiVal,
-        title: titleVal,
-        evaluation_id: editId,
-      })
-      setJournalDuplicate(data)
-    } catch {
-      // ignore
-    }
-  }
 
   const computed = useMemo(() => {
     const m = modules ?? defaultModules
@@ -202,7 +194,8 @@ export default function EvaluationForm() {
       hasJournalEvidence &&
       isVerifiedPublication(m.journal_index?.verification)
 
-    const journal = journalIndexPoints(isJournalVerified)
+    const isJournalDeclAccepted = Boolean(m.journal_index?.declaration_accepted)
+    const journal = journalIndexPoints(isJournalVerified, isJournalDeclAccepted)
 
     // 2. Conference Articles: 5 each, max 2
     const confEntries = m.conference_articles?.entries ?? []
@@ -255,6 +248,11 @@ export default function EvaluationForm() {
     )
     const fdpO = fdpOrganizedPoints(validFdpOrg)
 
+    // Factor 2: Conferences Organised (General Chair = 5, Session Chair = 3)
+    const confOrgRole = m.conference_organized?.role ?? ''
+    const confOrgConfirmed = Boolean(m.conference_organized?.confirmed)
+    const confOrg = conferenceOrganizedPoints(confOrgRole, confOrgConfirmed)
+
     // 2. Invited Talks: 5 each, max 2
     const talksEntries = m.talks_delivered?.entries ?? []
     const validTalks = talksEntries.filter((e) => hasText(e.title) && isValidFileProof(e.proof_file))
@@ -285,7 +283,7 @@ export default function EvaluationForm() {
     // Raw uncapped totals
     const tlp = sf + mooc + dept + inst
     const research = journal + conf + bc + books + ipr + funded + phd
-    const others = fdpO + talks + mou + hodDean + visits + fdpA
+    const others = fdpO + confOrg + talks + mou + hodDean + visits + fdpA
     const total = tlp + research + others
 
     const eligibility = calculateEligibility(tlp, research, others, facultyPosition)
@@ -303,6 +301,7 @@ export default function EvaluationForm() {
       funded_projects: funded,
       phd_awarded: phd,
       fdp_organized: fdpO,
+      conference_organized: confOrg,
       talks_delivered: talks,
       mou_signed: mou,
       hod_dean_role: hodDean,
@@ -444,6 +443,14 @@ export default function EvaluationForm() {
         points: computed.fdp_organized,
       },
 
+      conference_organized: {
+        role: data.modules?.conference_organized?.role ?? '',
+        confirmed: Boolean(data.modules?.conference_organized?.confirmed),
+        details: data.modules?.conference_organized?.details ?? '',
+        proof_file: data.modules?.conference_organized?.proof_file ?? '',
+        points: computed.conference_organized,
+      },
+
       mou_signed: {
         entries: data.modules?.mou_signed?.entries ?? [],
         points: computed.mou_signed,
@@ -506,6 +513,10 @@ export default function EvaluationForm() {
       .getValues('modules.journal_index.scopus_link')
       ?.trim()
 
+    const doi = form
+      .getValues('modules.journal_index.doi')
+      ?.trim()
+
     const title = form
       .getValues('modules.journal_index.title')
       ?.trim()
@@ -523,15 +534,25 @@ export default function EvaluationForm() {
       title?: string
       issn?: string
       eissn?: string
+      doi?: string
     }
 
     if (url) {
       // Preserve the existing DOI/publication URL verification flow.
       payload = {
         publication_url: url,
+        doi: doi || undefined,
+        title: title || undefined,
+      }
+    } else if (doi) {
+      payload = {
+        doi,
+        title: title || undefined,
+        issn: issn || undefined,
+        eissn: eissn || undefined,
       }
     } else if (title && (issn || eissn)) {
-      // New fallback: paper title plus journal ISSN/e-ISSN.
+      // Paper title plus journal ISSN/e-ISSN.
       payload = {
         title,
         issn: issn || undefined,
@@ -546,13 +567,38 @@ export default function EvaluationForm() {
 
     setVerificationLoading(true)
     setVerificationError('')
+    setJournalDuplicate(null)
 
     try {
+      // Step 1: Duplicate check MUST happen ONLY on Verify click
+      // Check central database for existing submission by another faculty member FIRST.
+      const { data: dupCheck } = await api.post('/evaluations/check-journal-duplicate', {
+        faculty_id: form.getValues('faculty_id'),
+        doi: doi || undefined,
+        publication_url: url || undefined,
+        title: title || undefined,
+        issn: issn || undefined,
+        eissn: eissn || undefined,
+        evaluation_id: editId,
+      })
+
+      if (dupCheck?.is_duplicate) {
+        // Immediate duplicate rejection: do not initiate external verification, do not award marks, do not allow submission
+        setJournalDuplicate(dupCheck)
+        form.setValue('modules.journal_index.verification', undefined, { shouldDirty: true })
+        form.setValue('modules.journal_index.declaration_accepted', false, { shouldDirty: true })
+        setVerificationError(dupCheck.message || 'Duplicate publication detected.')
+        return
+      }
+
+      // Step 2: No duplicate found -> continue existing external verification workflow
       console.log('VERIFY REQUEST:', payload)
 
       const { data } = await api.post('/publications/verify', payload)
 
       console.log('VERIFY RESPONSE:', data)
+
+      setJournalDuplicate(null)
 
       form.setValue(
         'modules.journal_index.verification',
@@ -571,12 +617,30 @@ export default function EvaluationForm() {
       console.error('Publication verification failed:', err)
 
       const detail = err?.response?.data?.detail
+      const isDuplicate = err?.response?.status === 409 || (typeof detail === 'string' && detail.includes('Duplicate Publication Detected'))
 
-      setVerificationError(
-        typeof detail === 'string'
-          ? detail
-          : 'Publication verification failed. Please check the submitted details and try again.'
-      )
+      if (isDuplicate) {
+        // Immediate duplicate rejection: do not award marks, do not allow submission
+        form.setValue('modules.journal_index.verification', undefined, { shouldDirty: true })
+        form.setValue('modules.journal_index.declaration_accepted', false, { shouldDirty: true })
+        const warnMsg = typeof detail === 'string' ? detail : 'Duplicate publication detected.'
+        setVerificationError(warnMsg)
+        const match = typeof detail === 'string' ? detail.match(/by\s+([^(]+)\s*\(Employee ID:\s*([^)]+)\)/i) : null
+        setJournalDuplicate({
+          is_duplicate: true,
+          duplicate_by: {
+            faculty_name: match ? match[1].trim() : 'another faculty member',
+            employee_id: match ? match[2].trim() : 'N/A',
+          },
+          message: warnMsg,
+        })
+      } else {
+        setVerificationError(
+          typeof detail === 'string'
+            ? detail
+            : 'Publication verification failed. Please check the submitted details and try again.'
+        )
+      }
     } finally {
       setVerificationLoading(false)
     }
@@ -1167,7 +1231,10 @@ export default function EvaluationForm() {
               type="text"
               placeholder="Paper Title"
               {...form.register('modules.journal_index.title', {
-                onChange: (e) => checkDuplicate(form.getValues('modules.journal_index.doi'), e.target.value)
+                onChange: () => {
+                  if (journalDuplicate) setJournalDuplicate(null)
+                  if (verificationError) setVerificationError('')
+                }
               })}
               className="input input-flex"
             />
@@ -1176,7 +1243,10 @@ export default function EvaluationForm() {
               type="text"
               placeholder="DOI (e.g. 10.1016/j.jss.2023.111876)"
               {...form.register('modules.journal_index.doi', {
-                onChange: (e) => checkDuplicate(e.target.value, form.getValues('modules.journal_index.title'))
+                onChange: () => {
+                  if (journalDuplicate) setJournalDuplicate(null)
+                  if (verificationError) setVerificationError('')
+                }
               })}
               className="input input-flex"
             />
@@ -1184,14 +1254,24 @@ export default function EvaluationForm() {
             <input
               type="text"
               placeholder="Journal ISSN (optional)"
-              {...form.register('modules.journal_index.issn')}
+              {...form.register('modules.journal_index.issn', {
+                onChange: () => {
+                  if (journalDuplicate) setJournalDuplicate(null)
+                  if (verificationError) setVerificationError('')
+                }
+              })}
               className="input input-flex"
             />
 
             <input
               type="text"
               placeholder="Journal e-ISSN (optional)"
-              {...form.register('modules.journal_index.eissn')}
+              {...form.register('modules.journal_index.eissn', {
+                onChange: () => {
+                  if (journalDuplicate) setJournalDuplicate(null)
+                  if (verificationError) setVerificationError('')
+                }
+              })}
               className="input input-flex"
             />
 
@@ -1300,7 +1380,7 @@ export default function EvaluationForm() {
           </div>
 
 
-          {verificationError && (
+          {verificationError && !journalDuplicate?.is_duplicate && (
             <div
               style={{
                 marginTop: '0.75rem',
@@ -1659,10 +1739,13 @@ export default function EvaluationForm() {
               </span>
             </div>
 
-            {/* Module 1: FDP Organized - 5d=5, 3-4d=4, 1-2d=3 */}
+            {/* Factor 1: Organising FDPs/Workshops - 5d=5, 3-4d=4, 1-2d=3 */}
             <FDPOrganizedModule form={form} points={computed.fdp_organized} />
 
-            {/* Module 2: Invited Talks / Resource Person - max 2, 5 pts each */}
+            {/* Factor 2: Conferences Organised - General Chair = 5, Session Chair = 3 */}
+            <ConferenceOrganizedModule form={form} points={computed.conference_organized} />
+
+            {/* Factor 3: Invited Talks / Resource Person - max 2, 5 pts each */}
             <TalksModule form={form} points={computed.talks_delivered} />
 
             {/* Module 3: MOU Signed - max 2, 3 pts each */}
@@ -3093,6 +3176,116 @@ function FDPOrganizedModule({
         >
           + Add Organised Event
         </button>
+      )}
+    </ModuleCard>
+  )
+}
+
+function ConferenceOrganizedModule({
+  form,
+  points,
+}: {
+  form: ReturnType<typeof useForm<FormValues>>
+  points: number
+}) {
+  const selectedRole = form.watch('modules.conference_organized.role')
+  const isConfirmed = Boolean(form.watch('modules.conference_organized.confirmed'))
+
+  return (
+    <ModuleCard
+      title="2. Conferences Organised (General Chair = 5 marks, Session Chair = 3 marks)"
+      points={points}
+      defaultOpen
+    >
+      <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ minWidth: '220px', flex: '1 1 220px' }}>
+          <select
+            {...form.register('modules.conference_organized.role')}
+            className="input"
+            style={{ width: '100%' }}
+          >
+            <option value="">-- Select Conference Role --</option>
+            <option value="General Chair">General Chair — 5 marks</option>
+            <option value="Session Chair">Session Chair — 3 marks</option>
+          </select>
+        </div>
+
+        <div style={{ flex: '2 1 240px' }}>
+          <input
+            type="text"
+            placeholder="Conference Details / Name (e.g. IEEE ICC 2026)"
+            {...form.register('modules.conference_organized.details')}
+            className="input"
+            style={{ width: '100%' }}
+          />
+        </div>
+
+        <ProofUpload
+          value={form.watch('modules.conference_organized.proof_file') || undefined}
+          onChange={(url) =>
+            form.setValue('modules.conference_organized.proof_file', url, { shouldDirty: true })
+          }
+          prefix="conference_organized"
+          mode="file"
+        />
+
+        {selectedRole && (
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('modules.conference_organized.role', '', { shouldDirty: true })
+              form.setValue('modules.conference_organized.confirmed', false, { shouldDirty: true })
+              form.setValue('modules.conference_organized.details', '', { shouldDirty: true })
+              form.setValue('modules.conference_organized.proof_file', '', { shouldDirty: true })
+            }}
+            className="remove-link"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {selectedRole && (
+        <div
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: isConfirmed ? '#ecfdf5' : '#f8fafc',
+            border: `1px solid ${isConfirmed ? '#a7f3d0' : '#e2e8f0'}`,
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+          }}
+        >
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', margin: 0 }}>
+            <input
+              type="checkbox"
+              {...form.register('modules.conference_organized.confirmed')}
+              style={{ width: '1.15rem', height: '1.15rem', accentColor: 'var(--primary)' }}
+            />
+            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#1e293b' }}>
+              I confirm that I served as <strong>{selectedRole}</strong> for the organised conference.
+            </span>
+          </label>
+
+          <span
+            style={{
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              padding: '0.25rem 0.65rem',
+              borderRadius: '9999px',
+              backgroundColor: isConfirmed ? '#dcfce7' : '#f1f5f9',
+              color: isConfirmed ? '#15803d' : '#64748b',
+            }}
+          >
+            {isConfirmed
+              ? `✓ ${selectedRole === 'General Chair' ? '5' : '3'} marks confirmed`
+              : '⚠ Checkbox required to award marks (0 marks)'}
+          </span>
+        </div>
       )}
     </ModuleCard>
   )

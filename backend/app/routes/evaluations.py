@@ -259,14 +259,32 @@ def _validate_modules_for_submit(
 
 @router.post("/check-journal-duplicate")
 def check_duplicate_journal(payload: dict, user: User = Depends(get_current_user)):
-    faculty_id = str(payload.get("faculty_id") or "")
+    faculty = get_faculty_by_user_id(user.id)
+    faculty_id = str(faculty.id) if faculty else str(payload.get("faculty_id") or "")
     doi = payload.get("doi")
+    publication_url = payload.get("publication_url") or payload.get("scopus_link")
     title = payload.get("title")
+    issn = payload.get("issn")
+    eissn = payload.get("eissn")
     eid = payload.get("evaluation_id")
-    dup = check_journal_duplicate(faculty_id, doi, title, eid)
+
+    dup = check_journal_duplicate(
+        faculty_id=faculty_id,
+        user_id=user.id,
+        doi=doi,
+        publication_url=publication_url,
+        title=title,
+        issn=issn,
+        eissn=eissn,
+        current_evaluation_id=eid,
+    )
     if dup:
-        return {"is_duplicate": True, "duplicate_by": dup}
-    return {"is_duplicate": False, "duplicate_by": None}
+        return {
+            "is_duplicate": True,
+            "duplicate_by": dup,
+            "message": dup.get("message", ""),
+        }
+    return {"is_duplicate": False, "duplicate_by": None, "message": ""}
 
 
 @router.get("")

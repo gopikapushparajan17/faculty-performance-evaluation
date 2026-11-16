@@ -264,6 +264,15 @@ export interface FDPOrganizedData {
   points: number
 }
 
+// Factor 2: Conferences Organised
+export interface ConferenceOrganizedData {
+  role: 'General Chair' | 'Session Chair' | ''
+  confirmed: boolean
+  details?: string
+  proof_file?: string
+  points: number
+}
+
 export interface MOUEntry {
   organization: string
   date_signed?: string
@@ -336,6 +345,7 @@ export interface EvaluationModules {
   departmental_activities: DeptActivitiesData
   institutional_activities: InstActivitiesData
   fdp_organized: FDPOrganizedData
+  conference_organized?: ConferenceOrganizedData
   mou_signed?: MOUSignedData
   hod_dean_role?: HODDeanRoleData
   industrial_visits?: IndustrialVisitsData

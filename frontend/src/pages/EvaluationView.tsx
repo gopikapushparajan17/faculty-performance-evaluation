@@ -78,8 +78,8 @@ function VerificationResult({
               fontWeight: 600,
               color:
                 scopusStatus === 'verified' ||
-                scopusStatus === 'indexed' ||
-                scopusStatus === 'found'
+                  scopusStatus === 'indexed' ||
+                  scopusStatus === 'found'
                   ? 'green'
                   : 'crimson',
             }}
@@ -146,12 +146,12 @@ function VerificationResult({
           </span>
 
           {verification.web_of_science?.records_found !== undefined && (
-  <span>
-    {' '}
-    ({verification.web_of_science.records_found} record
-    {verification.web_of_science.records_found === 1 ? '' : 's'})
-  </span>
-)}
+            <span>
+              {' '}
+              ({verification.web_of_science.records_found} record
+              {verification.web_of_science.records_found === 1 ? '' : 's'})
+            </span>
+          )}
         </div>
       )}
 
@@ -238,7 +238,7 @@ export default function EvaluationView() {
     api
       .get<EvaluationWithRevision>(`/evaluations/${evaluationId}`)
       .then(({ data }) => setEvalData(data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }, [evaluationId, location.pathname])
 
@@ -260,12 +260,12 @@ export default function EvaluationView() {
       setEvalData((current) =>
         current
           ? {
-              ...current,
-              revision_requested: true,
-              revision_reason: reason,
-              revision_status: 'pending',
-              revision_feedback: null,
-            }
+            ...current,
+            revision_requested: true,
+            revision_reason: reason,
+            revision_status: 'pending',
+            revision_feedback: null,
+          }
           : current
       )
       setRevisionReason('')
@@ -273,17 +273,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -312,12 +312,12 @@ export default function EvaluationView() {
       setEvalData((current) =>
         current
           ? {
-              ...current,
-              status: 'draft',
-              revision_requested: false,
-              revision_status: 'approved',
-              revision_feedback: feedback.trim() || null,
-            }
+            ...current,
+            status: 'draft',
+            revision_requested: false,
+            revision_status: 'approved',
+            revision_feedback: feedback.trim() || null,
+          }
           : current
       )
       alert('Revision request approved. The faculty member can now edit this evaluation.')
@@ -325,10 +325,10 @@ export default function EvaluationView() {
       const detail =
         err && typeof err === 'object' && 'response' in err
           ? (
-              err as {
-                response?: { data?: { detail?: string } }
-              }
-            ).response?.data?.detail
+            err as {
+              response?: { data?: { detail?: string } }
+            }
+          ).response?.data?.detail
           : null
       alert(typeof detail === 'string' ? detail : 'Failed to approve the revision request.')
     }
@@ -355,11 +355,11 @@ export default function EvaluationView() {
       setEvalData((current) =>
         current
           ? {
-              ...current,
-              revision_requested: false,
-              revision_status: 'rejected',
-              revision_feedback: feedback.trim(),
-            }
+            ...current,
+            revision_requested: false,
+            revision_status: 'rejected',
+            revision_feedback: feedback.trim(),
+          }
           : current
       )
       alert('Revision request rejected. Feedback has been recorded.')
@@ -367,10 +367,10 @@ export default function EvaluationView() {
       const detail =
         err && typeof err === 'object' && 'response' in err
           ? (
-              err as {
-                response?: { data?: { detail?: string } }
-              }
-            ).response?.data?.detail
+            err as {
+              response?: { data?: { detail?: string } }
+            }
+          ).response?.data?.detail
           : null
       alert(typeof detail === 'string' ? detail : 'Failed to reject the revision request.')
     }
@@ -386,9 +386,9 @@ export default function EvaluationView() {
       setEvalData((e) =>
         e
           ? {
-              ...e,
-              status: 'hod_approved',
-            }
+            ...e,
+            status: 'hod_approved',
+          }
           : null
       )
 
@@ -397,17 +397,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -433,10 +433,10 @@ export default function EvaluationView() {
       setEvalData((e) =>
         e
           ? {
-              ...e,
-              status: 'rejected',
-              reject_reason: reason,
-            }
+            ...e,
+            status: 'rejected',
+            reject_reason: reason,
+          }
           : null
       )
 
@@ -444,17 +444,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -476,9 +476,9 @@ export default function EvaluationView() {
       setEvalData((e) =>
         e
           ? {
-              ...e,
-              status: 'approved',
-            }
+            ...e,
+            status: 'approved',
+          }
           : null
       )
 
@@ -486,17 +486,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -527,10 +527,10 @@ export default function EvaluationView() {
       setEvalData((e) =>
         e
           ? {
-              ...e,
-              status: 'rejected',
-              reject_reason: reason,
-            }
+            ...e,
+            status: 'rejected',
+            reject_reason: reason,
+          }
           : null
       )
 
@@ -538,17 +538,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -579,17 +579,17 @@ export default function EvaluationView() {
     } catch (err: unknown) {
       const detail =
         err &&
-        typeof err === 'object' &&
-        'response' in err
+          typeof err === 'object' &&
+          'response' in err
           ? (
-              err as {
-                response?: {
-                  data?: {
-                    detail?: string
-                  }
+            err as {
+              response?: {
+                data?: {
+                  detail?: string
                 }
               }
-            ).response?.data?.detail
+            }
+          ).response?.data?.detail
           : null
 
       alert(
@@ -623,6 +623,7 @@ export default function EvaluationView() {
 
   const othersScore =
     (m?.fdp_organized?.points ?? 0) +
+    (m?.conference_organized?.points ?? 0) +
     (m?.talks_delivered?.points ?? 0) +
     (m?.mou_signed?.points ?? 0) +
     (m?.hod_dean_role?.points ?? 0) +
@@ -697,14 +698,13 @@ export default function EvaluationView() {
         {statusFlow.map((label) => (
           <span
             key={label}
-            className={`eval-status-dot ${
-              evalData.status ===
-              (label === 'HOD Approved'
-                ? 'hod_approved'
-                : label.toLowerCase())
+            className={`eval-status-dot ${evalData.status ===
+                (label === 'HOD Approved'
+                  ? 'hod_approved'
+                  : label.toLowerCase())
                 ? 'active'
                 : 'inactive'
-            }`}
+              }`}
           >
             {label}
           </span>
@@ -721,11 +721,10 @@ export default function EvaluationView() {
           </div>
 
           <div
-            className={`status-card status-${
-              evalData.status === 'hod_approved'
+            className={`status-card status-${evalData.status === 'hod_approved'
                 ? 'hod-approved'
                 : evalData.status
-            }`}
+              }`}
           >
             <h2>Status</h2>
             <h1>
@@ -871,6 +870,9 @@ export default function EvaluationView() {
             <div><strong>FDP Organized</strong></div>
             <div>{m?.fdp_organized?.points ?? 0}</div>
 
+            <div><strong>Conferences Organised</strong></div>
+            <div>{m?.conference_organized?.points ?? 0}</div>
+
             <div><strong>Talks Delivered</strong></div>
             <div>{m?.talks_delivered?.points ?? 0}</div>
 
@@ -912,22 +914,22 @@ export default function EvaluationView() {
         {/* JOURNAL */}
         {(m?.journal_index?.title ||
           m?.journal_index?.scopus_link) && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h3>Journal / Publication</h3>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3>Journal / Publication</h3>
 
-            <EvidenceRow
-              title={
-                m.journal_index.title ||
-                m.journal_index.scopus_link ||
-                'Journal publication'
-              }
-              proof={m.journal_index.scopus_link}
-              verification={
-                m.journal_index.verification
-              }
-            />
-          </div>
-        )}
+              <EvidenceRow
+                title={
+                  m.journal_index.title ||
+                  m.journal_index.scopus_link ||
+                  'Journal publication'
+                }
+                proof={m.journal_index.scopus_link}
+                verification={
+                  m.journal_index.verification
+                }
+              />
+            </div>
+          )}
 
         {/* CONFERENCE ARTICLES */}
         {m?.conference_articles?.entries?.length > 0 && (
@@ -1072,9 +1074,8 @@ export default function EvaluationView() {
                     >
                       <div style={{ flex: 1 }}>
                         <strong>
-                          {`${entry.type.toUpperCase()}: ${
-                            entry.title || entry.description || `IPR ${index + 1}`
-                          }`}
+                          {`${entry.type.toUpperCase()}: ${entry.title || entry.description || `IPR ${index + 1}`
+                            }`}
                         </strong>
                       </div>
 
@@ -1265,44 +1266,44 @@ export default function EvaluationView() {
         {/* DEPARTMENTAL */}
         {m?.departmental_activities?.entries?.length >
           0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h3>Departmental Activities</h3>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3>Departmental Activities</h3>
 
-            {m.departmental_activities.entries.map(
-              (entry, index) => (
-                <EvidenceRow
-                  key={index}
-                  title={
-                    entry.description ||
-                    `Department Activity ${index + 1}`
-                  }
-                  proof={entry.proof_file}
-                />
-              )
-            )}
-          </div>
-        )}
+              {m.departmental_activities.entries.map(
+                (entry, index) => (
+                  <EvidenceRow
+                    key={index}
+                    title={
+                      entry.description ||
+                      `Department Activity ${index + 1}`
+                    }
+                    proof={entry.proof_file}
+                  />
+                )
+              )}
+            </div>
+          )}
 
         {/* INSTITUTIONAL */}
         {m?.institutional_activities?.entries?.length >
           0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h3>Institutional Activities</h3>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3>Institutional Activities</h3>
 
-            {m.institutional_activities.entries.map(
-              (entry, index) => (
-                <EvidenceRow
-                  key={index}
-                  title={
-                    entry.description ||
-                    `Institutional Activity ${index + 1}`
-                  }
-                  proof={entry.proof_file}
-                />
-              )
-            )}
-          </div>
-        )}
+              {m.institutional_activities.entries.map(
+                (entry, index) => (
+                  <EvidenceRow
+                    key={index}
+                    title={
+                      entry.description ||
+                      `Institutional Activity ${index + 1}`
+                    }
+                    proof={entry.proof_file}
+                  />
+                )
+              )}
+            </div>
+          )}
 
         {/* FDP ORGANIZED */}
         {m?.fdp_organized?.entries?.length > 0 && (
@@ -1324,6 +1325,17 @@ export default function EvaluationView() {
           </div>
         )}
 
+        {/* CONFERENCES ORGANISED */}
+        {m?.conference_organized?.role && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3>Conferences Organised</h3>
+            <EvidenceRow
+              title={`${m.conference_organized.role}${m.conference_organized.details ? ` — ${m.conference_organized.details}` : ''} (${m.conference_organized.confirmed ? 'Confirmed' : 'Unconfirmed'})`}
+              proof={m.conference_organized.proof_file || undefined}
+            />
+          </div>
+        )}
+
         {!m?.journal_index?.title &&
           !m?.journal_index?.scopus_link &&
           !m?.mooc_courses?.entries?.length &&
@@ -1340,7 +1352,8 @@ export default function EvaluationView() {
           !m?.talks_delivered?.entries?.length &&
           !m?.departmental_activities?.entries?.length &&
           !m?.institutional_activities?.entries?.length &&
-          !m?.fdp_organized?.entries?.length && (
+          !m?.fdp_organized?.entries?.length &&
+          !m?.conference_organized?.role && (
             <p style={{ opacity: 0.6 }}>
               No submitted evidence found.
             </p>
@@ -1483,69 +1496,67 @@ export default function EvaluationView() {
         </h2>
 
         <p
-  className="form-label"
-  style={{ marginTop: 0 }}
->
-  Status:{' '}
-  <strong>
-    {evalData.status === 'hod_approved'
-      ? 'HOD Approved'
-      : evalData.status}
-  </strong>
-</p>
+          className="form-label"
+          style={{ marginTop: 0 }}
+        >
+          Status:{' '}
+          <strong>
+            {evalData.status === 'hod_approved'
+              ? 'HOD Approved'
+              : evalData.status}
+          </strong>
+        </p>
 
         <div className="form-actions">
-  {canHodApprove && (
-    <>
-      <button
-        type="button"
-        onClick={approveAsHod}
-        className="btn btn-success"
-      >
-        Approve
-      </button>
+          {canHodApprove && (
+            <>
+              <button
+                type="button"
+                onClick={approveAsHod}
+                className="btn btn-success"
+              >
+                Approve
+              </button>
 
-      <button
-        type="button"
-        onClick={rejectAsHod}
-        className="btn btn-danger"
-      >
-        Reject
-      </button>
-    </>
-  )}
-  {canPrincipalApprove && (
-    <>
-      <button
-        type="button"
-        onClick={approveAsPrincipal}
-        className="btn btn-success"
-      >
-        Approve
-      </button>
+              <button
+                type="button"
+                onClick={rejectAsHod}
+                className="btn btn-danger"
+              >
+                Reject
+              </button>
+            </>
+          )}
+          {canPrincipalApprove && (
+            <>
+              <button
+                type="button"
+                onClick={approveAsPrincipal}
+                className="btn btn-success"
+              >
+                Approve
+              </button>
 
-      <button
-        type="button"
-        onClick={rejectAsPrincipal}
-        className="btn btn-danger"
-      >
-        Reject
-      </button>
-    </>
-  )}
+              <button
+                type="button"
+                onClick={rejectAsPrincipal}
+                className="btn btn-danger"
+              >
+                Reject
+              </button>
+            </>
+          )}
 
-{(user?.role === 'faculty' ||
-user?.role === 'hod' ||
-user?.role === 'principal') && (
-  <button
-    type="button"
-    className="btn btn-primary"
-    onClick={downloadPdf}
-  >
-    Generate PDF
-  </button>
-)}
-</div>
+          {(user?.role === 'faculty' || user?.role === 'hod') && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={downloadPdf}
+            >
+              Generate PDF
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

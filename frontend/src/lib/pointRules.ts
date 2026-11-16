@@ -53,9 +53,9 @@ export function instActivitiesPoints(count: number): number {
 // PHASE 2 — RESEARCH SCORING
 // ============================================================================
 
-// 1. Journal Index: 30 marks per verified paper
-export function journalIndexPoints(isVerified: boolean): number {
-  return isVerified ? 30 : 0
+// 1. Journal Index: 30 marks per verified paper only after declaration is accepted
+export function journalIndexPoints(isVerified: boolean, declarationAccepted: boolean = false): number {
+  return (isVerified && declarationAccepted) ? 30 : 0
 }
 
 // 2. Conference Articles: 5 each, maximum 2; preserve verification
@@ -153,6 +153,17 @@ export function fdpOrganizedPoints(entries: { days: number }[]): number {
   return entries.reduce((sum, e) => sum + fdpOrganizedEntryPoints(Number(e.days) || 0), 0)
 }
 
+// Factor 2: Conferences Organised
+// - General Chair — 5 marks.
+// - Session Chair — 3 marks.
+// Marks awarded ONLY after confirmation checkbox is selected; if unchecked = 0
+export function conferenceOrganizedPoints(role: string, confirmed: boolean): number {
+  if (!confirmed) return 0
+  if (role === 'General Chair') return 5
+  if (role === 'Session Chair') return 3
+  return 0
+}
+
 // 2. Invited Talks/Resource Person: 5 each, maximum 2
 export function talksPoints(count: number): number {
   return Math.min(Math.max(0, count), 2) * 5
@@ -208,6 +219,7 @@ export function computeTotalPoints(modules: EvaluationModules): number {
 
   // Part C — Others
   total += modules.fdp_organized?.points ?? 0
+  total += modules.conference_organized?.points ?? 0
   total += modules.talks_delivered?.points ?? 0
   total += modules.mou_signed?.points ?? 0
   total += modules.hod_dean_role?.points ?? 0

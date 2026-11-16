@@ -140,13 +140,19 @@ def _journal_index_points(journal_index) -> int:
     link = getattr(journal_index, "scopus_link", None)
     issn = getattr(journal_index, "issn", None)
     eissn = getattr(journal_index, "eissn", None)
+    doi = getattr(journal_index, "doi", None)
     verification = getattr(journal_index, "verification", None)
-    has_evidence = _has_text(link) or _has_text(issn) or _has_text(eissn)
+    decl = getattr(journal_index, "declaration_accepted", False)
+    if isinstance(journal_index, dict):
+        decl = decl or journal_index.get("declaration_accepted", False)
+        doi = doi or journal_index.get("doi")
+    has_evidence = _has_text(link) or _has_text(issn) or _has_text(eissn) or _has_text(doi)
     if (
         _has_text(name)
         and has_evidence
         and _author_verified(verification)
         and _is_any_index_verified(verification)
+        and bool(decl)
     ):
         return 30
     return 0
@@ -175,6 +181,7 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
       DeptActivitiesData,
       InstActivitiesData,
       FDPOrganizedData,
+      ConferenceOrganizedData,
       MOUSignedData,
       HODDeanRoleData,
       IndustrialVisitsData,
@@ -328,6 +335,19 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
           elif days >= 1:
               fdp_organized += 3
 
+  # Factor 2: Conferences Organised
+  # - General Chair = 5 marks
+  # - Session Chair = 3 marks
+  # Marks awarded only after confirmation checkbox is selected; if unchecked = 0
+  conf_organized = 0
+  if getattr(m, "conference_organized", None) and isinstance(m.conference_organized, ConferenceOrganizedData):
+      if m.conference_organized.confirmed:
+          role = (m.conference_organized.role or "").strip()
+          if role == "General Chair":
+              conf_organized = 5
+          elif role == "Session Chair":
+              conf_organized = 3
+
   # 2. Invited Talks/Resource Person: 5 each, maximum 2
   talks = 0
   if isinstance(m.talks_delivered, TalksData):
@@ -390,6 +410,7 @@ def _compute_module_points(modules: EvaluationModules) -> dict[str, int]:
       "funded_projects": funded,
       "phd_awarded": phd,
       "fdp_organized": fdp_organized,
+      "conference_organized": conf_organized,
       "talks_delivered": talks,
       "mou_signed": mou,
       "hod_dean_role": hod_dean,
@@ -417,6 +438,8 @@ def _sync_module_points(modules: EvaluationModules) -> int:
     modules.departmental_activities.points = points.get("departmental_activities", 0)
     modules.institutional_activities.points = points.get("institutional_activities", 0)
     modules.fdp_organized.points = points.get("fdp_organized", 0)
+    if hasattr(modules, "conference_organized") and modules.conference_organized:
+        modules.conference_organized.points = points.get("conference_organized", 0)
     if hasattr(modules, "mou_signed") and modules.mou_signed:
         modules.mou_signed.points = points.get("mou_signed", 0)
     if hasattr(modules, "hod_dean_role") and modules.hod_dean_role:
@@ -455,6 +478,7 @@ def compute_category_scores(
         )
         others_actual = (
             points.get("fdp_organized", 0)
+            + points.get("conference_organized", 0)
             + points.get("talks_delivered", 0)
             + points.get("mou_signed", 0)
             + points.get("hod_dean_role", 0)

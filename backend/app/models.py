@@ -184,6 +184,14 @@ class FDPOrganizedData(BaseModel):
     points: int = 0
 
 
+class ConferenceOrganizedData(BaseModel):
+    role: str = ""  # "General Chair" or "Session Chair"
+    confirmed: bool = False
+    details: Optional[str] = ""
+    proof_file: Optional[str] = None
+    points: int = 0
+
+
 class MOUEntry(BaseModel):
     organization: str = ""
     date_signed: Optional[str] = ""
@@ -258,6 +266,7 @@ class EvaluationModules(BaseModel):
     departmental_activities: DeptActivitiesData = DeptActivitiesData()
     institutional_activities: InstActivitiesData = InstActivitiesData()
     fdp_organized: FDPOrganizedData = FDPOrganizedData()
+    conference_organized: ConferenceOrganizedData = ConferenceOrganizedData()
     mou_signed: MOUSignedData = MOUSignedData()
     hod_dean_role: HODDeanRoleData = HODDeanRoleData()
     industrial_visits: IndustrialVisitsData = IndustrialVisitsData()

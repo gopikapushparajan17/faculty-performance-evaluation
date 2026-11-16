@@ -1,9 +1,21 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON, ForeignKey, Boolean
+from sqlalchemy import Column, BigInteger, String, Enum, Text, JSON, ForeignKey, Boolean, DateTime
+from datetime import datetime
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class PasswordResetTokenDB(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
 
 
 class UserDB(Base):

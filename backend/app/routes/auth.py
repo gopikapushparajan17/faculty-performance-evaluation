@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from jose import JWTError, jwt
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
-from app.crud import get_user_by_email
+from app.crud import (
+    get_user_by_email,
+    create_password_reset_token,
+    verify_password_reset_token,
+    verify_and_use_password_reset_token,
+    send_password_reset_email,
+)
 
 router = APIRouter()
 
@@ -13,6 +19,15 @@ class LoginRequest(BaseModel):
     username: str  # email
     password: str
     college_id: str | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class UserResponse(BaseModel):
@@ -85,3 +100,37 @@ def token(form_data: OAuth2PasswordRequestForm = Depends()):
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
+@router.post("/forgot-password")
+def forgot_password(req: ForgotPasswordRequest):
+    email = req.email.strip() if req.email else ""
+    if email:
+        user = get_user_by_email(email)
+        if user:
+            try:
+                token = create_password_reset_token(int(user.id))
+                send_password_reset_email(user.email, token)
+            except Exception as e:
+                print(f"[Forgot Password] Error: {e}")
+
+    # Always return a generic response to prevent email enumeration
+    return {
+        "message": "If your institutional email is registered in the system, you will receive a password reset link shortly."
+    }
+
+
+@router.get("/verify-reset-token")
+def verify_reset_token_route(token: str):
+    valid, message, _ = verify_password_reset_token(token)
+    if not valid:
+        raise HTTPException(status_code=400, detail=message)
+    return {"valid": True, "message": message}
+
+
+@router.post("/reset-password")
+def reset_password_route(req: ResetPasswordRequest):
+    success, message = verify_and_use_password_reset_token(req.token, req.new_password)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"message": message}

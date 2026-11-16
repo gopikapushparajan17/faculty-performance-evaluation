@@ -9,6 +9,13 @@ from app.scopus_updater import start_scopus_updater
 app = FastAPI(title="Faculty Performance Evaluation API")
 start_scopus_updater()
 
+try:
+    from app.db_models import Base
+    from app.mysql_db import engine
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+except Exception:
+    pass
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

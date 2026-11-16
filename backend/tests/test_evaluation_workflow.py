@@ -142,11 +142,12 @@ def test_existing_research_scoring_preserved_in_evaluation_shell():
     db.add.side_effect = mock_add
     db.refresh.side_effect = lambda row: None
 
-    # Journal with verified title & crossref
+    # Journal with verified title & crossref and accepted declaration
     journal_data = JournalIndexData(
         title="Verified Journal Paper",
         value="Verified Journal Paper",
         scopus_link="https://doi.org/10.1234/sample",
+        declaration_accepted=True,
         verification={
             "publication_found": True,
             "author_match": True,

@@ -164,12 +164,13 @@ class TestConferenceScoring:
 
 
 class TestJournalScoring:
-    def _journal(self, verification, title="Nature Paper", link=DOI_PROOF):
+    def _journal(self, verification, title="Nature Paper", link=DOI_PROOF, declaration_accepted=True):
         return JournalIndexData(
             title=title,
             value="",
             scopus_link=link,
             verification=verification,
+            declaration_accepted=declaration_accepted,
         )
 
     def test_l_scopus_only_is_four(self):
@@ -220,9 +221,21 @@ class TestJournalScoring:
                 issn="1234-5678",
                 scopus_link="",
                 verification=_wos_only(),
+                declaration_accepted=True,
             )
         )
         assert _points(m)["journal_index"] == 30
+
+    def test_journal_without_declaration_is_zero(self):
+        m = _modules(
+            journal=JournalIndexData(
+                title="Verified But Unchecked",
+                scopus_link=DOI_PROOF,
+                verification=_wos_only(),
+                declaration_accepted=False,
+            )
+        )
+        assert _points(m)["journal_index"] == 0
 
 
 def _chapter(title="Chapter One", proof=DOI_PROOF, verification=None):
@@ -353,6 +366,7 @@ class TestRegressionAndPersistence:
                 title="Journal Paper",
                 scopus_link=DOI_PROOF,
                 verification=_wos_only(),
+                declaration_accepted=True,
             ),
             extra={
                 "student_feedback": StudentFeedbackData(percentage="90"),
@@ -400,6 +414,7 @@ class TestRegressionAndPersistence:
                     "value": "",
                     "scopus_link": DOI_PROOF,
                     "verification": _wos_only(),
+                    "declaration_accepted": True,
                     "points": 0,
                 },
             },

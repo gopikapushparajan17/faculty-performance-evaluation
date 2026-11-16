@@ -1,10 +1,150 @@
 from sqlalchemy import select
+import secrets
+from datetime import datetime, timedelta
 
 from app.mysql_db import SessionLocal
-from app.db_models import UserDB, FacultyDB, EvaluationDB
+from app.db_models import UserDB, FacultyDB, EvaluationDB, PasswordResetTokenDB
 from app.models import User, FacultyProfile, Evaluation, EvaluationModules
 from app.database import _compute_total_points
 from sqlalchemy import Boolean
+
+
+def create_password_reset_token(user_id: int, expires_minutes: int = 60, db=None) -> str:
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=expires_minutes)
+
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+
+    try:
+        record = PasswordResetTokenDB(
+            user_id=int(user_id),
+            token=token,
+            created_at=datetime.utcnow(),
+            expires_at=expires_at,
+            used=False,
+        )
+        db.add(record)
+        db.commit()
+        return token
+    finally:
+        if should_close:
+            db.close()
+
+
+def verify_password_reset_token(token: str, db=None) -> tuple[bool, str, int | None]:
+    if not token or not token.strip():
+        return False, "Invalid reset token.", None
+
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+
+    try:
+        record = db.query(PasswordResetTokenDB).filter(PasswordResetTokenDB.token == token.strip()).first()
+        if not record:
+            return False, "Invalid or unrecognized reset token.", None
+        if record.used:
+            return False, "This password reset link has already been used.", None
+        if record.expires_at < datetime.utcnow():
+            return False, "This password reset link has expired.", None
+        return True, "Token is valid.", record.user_id
+    finally:
+        if should_close:
+            db.close()
+
+
+def verify_and_use_password_reset_token(token: str, new_password: str, db=None) -> tuple[bool, str]:
+    if not token or not token.strip():
+        return False, "Invalid reset token."
+    if not new_password or len(new_password) < 6:
+        return False, "Password must be at least 6 characters long."
+
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+
+    try:
+        record = db.query(PasswordResetTokenDB).filter(PasswordResetTokenDB.token == token.strip()).first()
+        if not record:
+            return False, "Invalid or unrecognized reset token."
+        if record.used:
+            return False, "This password reset link has already been used."
+        if record.expires_at < datetime.utcnow():
+            return False, "This password reset link has expired."
+
+        user = db.query(UserDB).filter(UserDB.id == record.user_id).first()
+        if not user:
+            return False, "Associated user account was not found."
+
+        import bcrypt
+        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        user.password_hash = hashed
+        record.used = True
+        db.commit()
+        return True, "Password has been successfully reset. You can now sign in with your new password."
+    finally:
+        if should_close:
+            db.close()
+
+
+def send_password_reset_email(to_email: str, token: str) -> bool:
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from app.config import (
+        SMTP_HOST,
+        SMTP_PORT,
+        SMTP_USER,
+        SMTP_PASSWORD,
+        SMTP_FROM_EMAIL,
+        SMTP_USE_TLS,
+        FRONTEND_URL,
+    )
+
+    reset_link = f"{FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+    subject = "Password Reset Request — Faculty Performance Evaluation System"
+    body = f"""Hello,
+
+We received a request to reset the password for your Faculty Performance Evaluation account.
+
+To choose a new password, please click the link below:
+{reset_link}
+
+This link is time-limited and can be used only once.
+
+If you did not request a password reset, please ignore this email. Your password will remain unchanged.
+
+Best regards,
+Faculty Evaluation System
+"""
+
+    # If SMTP credentials are not configured or host is local/empty, log safely and don't fail
+    if not SMTP_USER or not SMTP_PASSWORD or SMTP_HOST in ("localhost", "127.0.0.1", ""):
+        print(f"[Password Reset] Link for {to_email}: {reset_link}")
+        return True
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = SMTP_FROM_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
+        if SMTP_USE_TLS:
+            server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"[Password Reset] Failed sending email to {to_email}: {e}")
+        return False
 
 
 def get_user_by_email(email: str):
@@ -725,24 +865,44 @@ def normalize_doi(doi: str | None) -> str | None:
     if not doi or not isinstance(doi, str):
         return None
     d = doi.strip().lower()
-    d = re.sub(r"^https?://(dx\.)?doi\.org/", "", d)
+    # Remove enclosing quotes, brackets, whitespace
+    d = re.sub(r"^[\s\"'<(\[]+|[\s\"'>)\]]+$", "", d)
+    # Remove URL prefixes: https://, http://, www., dx.doi.org, doi.org
+    d = re.sub(r"^https?://", "", d)
+    d = re.sub(r"^(www\.)?(dx\.)?doi\.org/", "", d)
     d = re.sub(r"^doi:\s*", "", d)
-    d = d.strip()
-    return d if d else None
+    # Extract pattern 10.xxxx/...
+    match = re.search(r"(10\.\d{4,9}/[^\s\"'<>]+)", d)
+    if match:
+        d = match.group(1)
+    # Strip any trailing slashes, dots, punctuation, whitespace
+    d = d.rstrip("/.,;: ")
+    return d if (d.startswith("10.") and "/" in d) else (d if d else None)
+
+
+def normalize_issn(issn: str | None) -> str | None:
+    if not issn or not isinstance(issn, str):
+        return None
+    cleaned = re.sub(r"[^0-9xX]", "", issn.strip()).upper()
+    return cleaned if cleaned else None
 
 
 def normalize_title(title: str | None) -> str | None:
     if not title or not isinstance(title, str):
         return None
     cleaned = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
-    return cleaned if len(cleaned) >= 8 else None
+    return cleaned if len(cleaned) >= 5 else None
 
 
 def check_journal_duplicate(
     *args,
     faculty_id: str | int | None = None,
+    user_id: str | int | None = None,
     doi: str | None = None,
+    publication_url: str | None = None,
     title: str | None = None,
+    issn: str | None = None,
+    eissn: str | None = None,
     current_evaluation_id: str | int | None = None,
     db=None,
     **kwargs,
@@ -772,10 +932,19 @@ def check_journal_duplicate(
     should_close = False
     eval_id = current_evaluation_id
 
-    target_doi = normalize_doi(doi)
-    target_title = normalize_title(title)
+    # Candidate publication identifiers
+    candidate_doi = (
+        normalize_doi(doi)
+        or normalize_doi(publication_url)
+        or normalize_doi(kwargs.get("scopus_link"))
+    )
+    candidate_title = normalize_title(title)
+    candidate_issn = normalize_issn(issn)
+    candidate_eissn = normalize_issn(eissn)
+    cand_issns = {candidate_issn, candidate_eissn} - {None}
 
-    if not target_doi and not target_title:
+    # If neither DOI nor title is provided, cannot identify paper duplicate
+    if not candidate_doi and not candidate_title:
         return None
 
     if session is None:
@@ -786,33 +955,61 @@ def check_journal_duplicate(
             return None
 
     try:
-        query = session.query(EvaluationDB)
-        if faculty_id:
+        # Resolve all identifiers belonging to the current faculty member
+        own_faculty_ids = set()
+        own_user_ids = set()
+
+        if faculty_id is not None and str(faculty_id).strip():
             try:
-                query = query.filter(EvaluationDB.faculty_id != int(faculty_id))
-            except ValueError:
-                pass
-        if eval_id:
-            try:
-                query = query.filter(EvaluationDB.id != int(eval_id))
-            except ValueError:
+                fid = int(faculty_id)
+                own_faculty_ids.add(fid)
+                fac_row = session.query(FacultyDB).filter(FacultyDB.id == fid).first()
+                if fac_row:
+                    own_user_ids.add(fac_row.user_id)
+                else:
+                    fac_by_u = session.query(FacultyDB).filter(FacultyDB.user_id == fid).first()
+                    if fac_by_u:
+                        own_faculty_ids.add(fac_by_u.id)
+                        own_user_ids.add(fid)
+            except (ValueError, TypeError):
                 pass
 
+        if user_id is not None and str(user_id).strip():
+            try:
+                uid = int(user_id)
+                own_user_ids.add(uid)
+                fac_by_u = session.query(FacultyDB).filter(FacultyDB.user_id == uid).first()
+                if fac_by_u:
+                    own_faculty_ids.add(fac_by_u.id)
+            except (ValueError, TypeError):
+                pass
+
+        query = session.query(EvaluationDB)
         rows = query.all()
+
         for item in rows:
             ev = item[0] if isinstance(item, tuple) else item
             fac = item[1] if isinstance(item, tuple) and len(item) > 1 else None
 
-            # Skip same faculty or same evaluation if matched in mock or unapplied filter
-            if faculty_id is not None and getattr(ev, "faculty_id", None) is not None:
-                try:
-                    if int(ev.faculty_id) == int(faculty_id):
-                        continue
-                except (ValueError, TypeError):
-                    pass
+            # Skip evaluations belonging to the same evaluation being edited
             if eval_id is not None and getattr(ev, "id", None) is not None:
                 try:
                     if int(ev.id) == int(eval_id):
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            # Skip evaluations belonging to the same faculty member
+            if getattr(ev, "faculty_id", None) is not None:
+                try:
+                    if int(ev.faculty_id) in own_faculty_ids:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            if getattr(ev, "ef_id", None) is not None:
+                try:
+                    if int(ev.ef_id) in own_user_ids:
                         continue
                 except (ValueError, TypeError):
                     pass
@@ -822,48 +1019,97 @@ def check_journal_duplicate(
             if not isinstance(journal, dict):
                 continue
 
+            j_ver = journal.get("verification") or {}
+            if not isinstance(j_ver, dict):
+                j_ver = {}
+
+            # Extract existing DOI
             j_doi = (
                 normalize_doi(journal.get("doi"))
-                or normalize_doi((journal.get("verification") or {}).get("doi"))
+                or normalize_doi(j_ver.get("doi"))
+                or normalize_doi(journal.get("scopus_link"))
+                or normalize_doi(journal.get("publication_url"))
+                or normalize_doi(journal.get("value"))
             )
-            if not j_doi:
-                link = journal.get("scopus_link") or ""
-                if "doi.org/" in link.lower():
-                    j_doi = normalize_doi(link)
 
+            # Extract existing Title
             j_title = (
                 normalize_title(journal.get("title"))
+                or normalize_title(j_ver.get("title"))
                 or normalize_title(journal.get("value"))
-                or normalize_title((journal.get("verification") or {}).get("title"))
             )
 
+            # Extract existing ISSNs
+            j_issns = {
+                normalize_issn(journal.get("issn")),
+                normalize_issn(journal.get("eissn")),
+                normalize_issn(j_ver.get("issn")),
+                normalize_issn(j_ver.get("eissn")),
+            } - {None}
+
             matched_by = None
-            if target_doi and j_doi and target_doi == j_doi:
-                matched_by = "doi"
-            elif target_title and j_title and target_title == j_title:
-                matched_by = "title"
+
+            # Match Rule 1: DOI is the primary unique identifier
+            if candidate_doi and j_doi:
+                if candidate_doi == j_doi:
+                    matched_by = "doi"
+
+            # Match Rule 2: Fallback title match when DOI is not matched or unavailable
+            elif candidate_title and j_title:
+                if candidate_title == j_title:
+                    # Supporting journal metadata check:
+                    # If both candidate and existing paper explicitly specify ISSN/eISSN
+                    # and they are completely different journals, do not match.
+                    if cand_issns and j_issns and not (cand_issns & j_issns):
+                        matched_by = None
+                    else:
+                        matched_by = "title"
 
             if matched_by:
-                fac_name = "Another Faculty"
-                emp_id = ""
+                fac_name = "Another Faculty Member"
+                raw_emp_id = ""
+
                 if fac:
                     fac_name = getattr(fac, "name", fac_name)
-                    emp_id = getattr(fac, "employee_id", None) or getattr(fac, "emp_id", "")
+                    raw_emp_id = getattr(fac, "employee_id", None) or getattr(fac, "emp_id", "")
                 elif getattr(ev, "faculty_id", None):
                     try:
                         fac_obj = session.query(FacultyDB).filter(FacultyDB.id == ev.faculty_id).first()
                         if fac_obj:
                             fac_name = getattr(fac_obj, "name", fac_name)
-                            emp_id = getattr(fac_obj, "employee_id", None) or getattr(fac_obj, "emp_id", "")
+                            raw_emp_id = getattr(fac_obj, "employee_id", None) or getattr(fac_obj, "emp_id", "")
+                        elif getattr(ev, "ef_id", None):
+                            fac_by_ef = session.query(FacultyDB).filter(FacultyDB.user_id == ev.ef_id).first()
+                            if fac_by_ef:
+                                fac_name = getattr(fac_by_ef, "name", fac_name)
+                                raw_emp_id = getattr(fac_by_ef, "employee_id", None) or getattr(fac_by_ef, "emp_id", "")
+                            else:
+                                u_obj = session.query(UserDB).filter(UserDB.id == ev.ef_id).first()
+                                if u_obj:
+                                    fac_name = getattr(u_obj, "username", fac_name)
                     except Exception:
                         pass
 
+                emp_str = str(raw_emp_id).strip() if raw_emp_id else ""
+                if emp_str:
+                    formatted_emp = emp_str if emp_str.upper().startswith("EMP") else f"EMP{emp_str}"
+                else:
+                    formatted_emp = f"EMP{getattr(ev, 'faculty_id', '0000')}"
+
+                warning_msg = (
+                    f"⚠ Duplicate Publication Detected: This publication has already been submitted "
+                    f"for evaluation by {fac_name} (Employee ID: {formatted_emp}). "
+                    f"Duplicate submissions across faculty accounts are not permitted."
+                )
+
                 return {
                     "duplicate": True,
+                    "is_duplicate": True,
                     "faculty_name": fac_name,
-                    "employee_id": emp_id,
+                    "employee_id": formatted_emp,
                     "evaluation_id": getattr(ev, "id", None),
                     "matched_by": matched_by,
+                    "message": warning_msg,
                 }
 
         return None
