@@ -350,6 +350,7 @@ def list_evaluations_paginated_route(
     page_size: int = 25,
     status: str | None = None,
     search: str | None = None,
+    include_final_approved: bool = False,
     user: User = Depends(require_role("hod", "principal")),
 ):
     if user.role == "principal":
@@ -370,7 +371,7 @@ def list_evaluations_paginated_route(
         page_size=page_size,
         status=status,
         search=search,
-        include_final_approved=user.role == "hod",
+        include_final_approved=include_final_approved,
     )
 
 @router.get("/counts")

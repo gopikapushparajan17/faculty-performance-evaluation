@@ -11,17 +11,19 @@ export default function Dashboard() {
   const [hodPages, setHodPages] = useState(1)
   const [hodSearch, setHodSearch] = useState('')
   const [pending, setPending] = useState<Evaluation[]>([])
-  const [approved, setApproved] = useState<Evaluation[]>([])
+  const [hodApproved, setHodApproved] = useState<Evaluation[]>([])
+  const [principalApproved, setPrincipalApproved] = useState<Evaluation[]>([])
   const [rejected, setRejected] = useState<Evaluation[]>([])
   const [revisionRequests, setRevisionRequests] = useState<Evaluation[]>([])
   const [hodCounts, setHodCounts] = useState({
     pending: 0,
+    hod_approved: 0,
     approved: 0,
     rejected: 0,
     total: 0,
   })
   const [hodView, setHodView] = useState<
-    'dashboard' | 'pending' | 'approved' | 'rejected' | 'all' | 'revision_requests'
+    'dashboard' | 'pending' | 'hod_approved' | 'approved' | 'rejected' | 'all' | 'revision_requests'
   >('dashboard')
   const [mine, setMine] = useState<Evaluation[]>([])
   const [profile, setProfile] = useState<FacultyProfile | null>(null)
@@ -31,13 +33,13 @@ export default function Dashboard() {
   const stateMessage = location.state?.message
 
   useEffect(() => {
-    const allowedViews = ['pending', 'approved', 'rejected', 'all']
+    const allowedViews = ['pending', 'hod_approved', 'approved', 'rejected', 'all']
     const stateView = location.state?.returnHodView
     const savedView = window.sessionStorage.getItem('hodReturnView')
     const returnHodView = allowedViews.includes(stateView) ? stateView : savedView
 
     if (user?.role === 'hod' && allowedViews.includes(returnHodView)) {
-      setHodView(returnHodView as 'pending' | 'approved' | 'rejected' | 'all')
+      setHodView(returnHodView as 'pending' | 'hod_approved' | 'approved' | 'rejected' | 'all')
       setHodPage(1)
     }
   }, [location.state?.returnHodView, user?.role])
@@ -50,16 +52,18 @@ export default function Dashboard() {
         }
 
         if (user?.role === 'hod') {
-          const [pRes, aRes, rRes, countRes, allRes] = await Promise.all([
+          const [pRes, haRes, aRes, rRes, countRes, allRes] = await Promise.all([
             api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
             api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
+            api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
             api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
             api.get('/evaluations/counts'),
             api.get<Evaluation[]>('/evaluations/all'),
           ])
           
           setPending(pRes.data.items)
-          setApproved(aRes.data.items)
+          setHodApproved(haRes.data.items)
+          setPrincipalApproved(aRes.data.items)
           setRejected(rRes.data.items)
           setHodCounts(countRes.data)
           setRevisionRequests(
@@ -91,7 +95,8 @@ export default function Dashboard() {
           text: 'Failed to load dashboard data. Check browser console.',
         })
         setPending([])
-        setApproved([])
+        setHodApproved([])
+        setPrincipalApproved([])
         setRejected([])
         setRevisionRequests([])
         setMine([])
@@ -145,7 +150,8 @@ const allHodEvaluations = allEvaluations
       return Number(b.id) - Number(a.id)
     })
 
-  const recentApproved = sortRecent(approved).slice(0, 5)
+  const recentHodApproved = sortRecent(hodApproved).slice(0, 5)
+  const recentPrincipalApproved = sortRecent(principalApproved).slice(0, 5)
   const recentRejected = sortRecent(rejected).slice(0, 5)
 
   const approvedMine = mine.filter(
@@ -181,7 +187,7 @@ const allHodEvaluations = allEvaluations
   }
 
   async function loadHodPage(
-    view: 'pending' | 'approved' | 'rejected' | 'all',
+    view: 'pending' | 'hod_approved' | 'approved' | 'rejected' | 'all',
     page: number
   ) {
   const status = view === 'all' ? '' : `&status=${view}`
@@ -195,8 +201,10 @@ const allHodEvaluations = allEvaluations
 
   if (view === 'pending') {
     setPending(res.data.items)
+  } else if (view === 'hod_approved') {
+    setHodApproved(res.data.items)
   } else if (view === 'approved') {
-    setApproved(res.data.items)
+    setPrincipalApproved(res.data.items)
   } else if (view === 'rejected') {
     setRejected(res.data.items)
   } else {
@@ -208,9 +216,10 @@ const allHodEvaluations = allEvaluations
 }
 
 const refreshHodLists = async () => {
-  const [pRes, aRes, rRes, countRes, allRes] = await Promise.all([
+  const [pRes, haRes, aRes, rRes, countRes, allRes] = await Promise.all([
     api.get('/evaluations/paginated?page=1&page_size=25&status=pending'),
     api.get('/evaluations/paginated?page=1&page_size=5&status=hod_approved'),
+    api.get('/evaluations/paginated?page=1&page_size=5&status=approved'),
     api.get('/evaluations/paginated?page=1&page_size=5&status=rejected'),
     api.get('/evaluations/counts'),
     api.get<Evaluation[]>('/evaluations/all'),
@@ -223,7 +232,8 @@ const refreshHodLists = async () => {
     }),
   )
   setPending(pRes.data.items)
-  setApproved(aRes.data.items)
+  setHodApproved(haRes.data.items)
+  setPrincipalApproved(aRes.data.items)
   setRejected(rRes.data.items)
   setHodCounts(countRes.data)
 
@@ -234,7 +244,8 @@ const refreshHodLists = async () => {
   const hodViewTitle = {
     dashboard: 'HOD Approval Dashboard',
     pending: 'Pending Evaluations',
-    approved: 'Approved Evaluations',
+    hod_approved: 'HOD Approved Evaluations',
+    approved: 'Principal Approved Evaluations',
     rejected: 'Rejected Evaluations',
     all: 'All Evaluations',
     revision_requests: 'Revision Requests',
@@ -244,16 +255,143 @@ const refreshHodLists = async () => {
     <div>
       <style>{`
         .hod-stats-grid {
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 0;
+          width: 100%;
+          border-top: 1px solid var(--line-strong);
+          border-bottom: 1px solid var(--line-strong);
+          background: var(--surface);
+          margin: 0 0 32px 0;
+          box-sizing: border-box;
         }
-        @media (max-width: 1100px) {
-          .hod-stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+        .hod-stats-grid .stat-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: flex-start;
+          min-width: 0;
+          width: 100%;
+          min-height: 124px;
+          padding: 18px 16px 14px;
+          border: 0;
+          border-right: 1px solid var(--line);
+          border-radius: 0;
+          background: transparent;
+          text-align: left;
+          cursor: pointer;
+          box-shadow: none;
+          overflow: hidden;
+          box-sizing: border-box;
+          transition: background 0.18s ease;
         }
-        @media (max-width: 700px) {
-          .hod-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+        .hod-stats-grid .stat-card:hover {
+          background: #f7f4ec;
+          transform: none;
+          box-shadow: none;
         }
+
+        .hod-stats-grid .stat-card h3 {
+          margin: 0 0 6px 0;
+          color: var(--ink);
+          font-family: var(--serif);
+          font-weight: 600;
+          font-size: clamp(28px, 2.2vw, 36px);
+          line-height: 1;
+          letter-spacing: -0.5px;
+        }
+
+        .hod-stats-grid .stat-card p {
+          margin: 0;
+          color: var(--ink-soft);
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1.35;
+          letter-spacing: 0.1px;
+          word-break: normal;
+          overflow-wrap: break-word;
+          max-width: 100%;
+        }
+
+        .hod-stats-grid .stat-card span {
+          display: block;
+          margin-top: auto;
+          padding-top: 8px;
+          color: var(--accent);
+          font-family: var(--mono);
+          font-size: 9px;
+          font-weight: 500;
+          line-height: 1.35;
+          letter-spacing: 0.25px;
+          white-space: normal;
+          word-break: normal;
+          overflow-wrap: break-word;
+          max-width: 100%;
+        }
+
+        /* Desktop: 6 equal columns */
+        @media (min-width: 1101px) {
+          .hod-stats-grid {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+          }
+          .hod-stats-grid .stat-card {
+            border-top: 0;
+            border-right: 1px solid var(--line);
+          }
+          .hod-stats-grid .stat-card:last-child {
+            border-right: 0;
+          }
+        }
+
+        /* Medium / Tablet: 3 columns (2 rows of 3) */
+        @media (max-width: 1100px) and (min-width: 761px) {
+          .hod-stats-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .hod-stats-grid .stat-card {
+            border-top: 0;
+            border-right: 1px solid var(--line);
+          }
+          .hod-stats-grid .stat-card:nth-child(3n) {
+            border-right: 0;
+          }
+          .hod-stats-grid .stat-card:nth-child(n+4) {
+            border-top: 1px solid var(--line);
+          }
+        }
+
+        /* Small Tablet / Mobile: 2 columns (3 rows of 2) */
+        @media (max-width: 760px) and (min-width: 441px) {
+          .hod-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .hod-stats-grid .stat-card {
+            border-top: 0;
+            border-right: 1px solid var(--line);
+          }
+          .hod-stats-grid .stat-card:nth-child(2n) {
+            border-right: 0;
+          }
+          .hod-stats-grid .stat-card:nth-child(n+3) {
+            border-top: 1px solid var(--line);
+          }
+        }
+
+        /* Extra small: 1 column */
         @media (max-width: 440px) {
-          .hod-stats-grid { grid-template-columns: minmax(0, 1fr); }
+          .hod-stats-grid {
+            grid-template-columns: 1fr;
+          }
+          .hod-stats-grid .stat-card {
+            border-right: 0;
+            border-top: 1px solid var(--line);
+          }
+          .hod-stats-grid .stat-card:first-child {
+            border-top: 0;
+          }
         }
       `}</style>
       <h1 className="page-title">
@@ -272,7 +410,20 @@ const refreshHodLists = async () => {
           >
             <h3>{hodCounts.pending}</h3>
             <p>Pending Evaluations</p>
-            <span>View →</span>
+            <span>View&nbsp;→</span>
+          </button>
+
+          <button
+            className="stat-card"
+            onClick={() => {
+              setHodPage(1)
+              setHodView('hod_approved')
+            }}
+            type="button"
+          >
+            <h3>{hodCounts.hod_approved}</h3>
+            <p>HOD Approved</p>
+            <span>Awaiting Principal Approval&nbsp;→</span>
           </button>
 
           <button
@@ -284,8 +435,8 @@ const refreshHodLists = async () => {
             type="button"
           >
             <h3>{hodCounts.approved}</h3>
-            <p>Approved Evaluations</p>
-            <span>View →</span>
+            <p>Principal Approved</p>
+            <span>Final Approved&nbsp;→</span>
           </button>
 
           <button
@@ -298,7 +449,7 @@ const refreshHodLists = async () => {
           >
             <h3>{hodCounts.rejected}</h3>
             <p>Rejected Evaluations</p>
-            <span>View →</span>
+            <span>View&nbsp;→</span>
           </button>
 
           <button
@@ -311,7 +462,7 @@ const refreshHodLists = async () => {
           >
             <h3>{revisionRequests.length}</h3>
             <p>Revision Requests</p>
-            <span>View requests →</span>
+            <span>View requests&nbsp;→</span>
           </button>
 
           <button
@@ -324,7 +475,7 @@ const refreshHodLists = async () => {
           >
             <h3>{hodCounts.total}</h3>
             <p>Total Evaluations</p>
-            <span>View →</span>
+            <span>View&nbsp;→</span>
           </button>
         </div>
       ) : user?.role === 'faculty' ? (
@@ -509,7 +660,10 @@ const refreshHodLists = async () => {
               </section>
 
               <section className="section hod-archive-section">
-                <h2 className="section-title">Approved Evaluations</h2>
+                <h2 className="section-title">HOD Approved</h2>
+                <p style={{ color: 'var(--muted)', marginTop: '-8px', marginBottom: '14px', fontSize: '12px' }}>
+                  Awaiting Principal Approval
+                </p>
 
                 <div className="card table-wrap">
                   <table>
@@ -525,14 +679,98 @@ const refreshHodLists = async () => {
                     </thead>
 
                     <tbody>
-                      {approved.length === 0 ? (
+                      {hodApproved.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="td-muted">
-                            No approved evaluations yet.
+                            No evaluations awaiting Principal approval.
                           </td>
                         </tr>
                       ) : (
-                        recentApproved.map((ev) => (
+                        recentHodApproved.map((ev) => (
+                          <tr key={ev.id}>
+                            <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                            <td>{ev.faculty?.employee_id ?? '—'}</td>
+                            <td>{ev.academic_year}</td>
+                            <td style={{ fontWeight: 500 }}>
+                              {ev.total_points ?? 0}
+                            </td>
+                            <td>
+                              {(ev as unknown as { approved_at?: string }).approved_at ?? '—'}
+                            </td>
+                            <td>
+                              <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link"
+                              >
+                                View
+                              </Link>
+
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => deleteEvaluation(ev.id)}
+                                style={{ marginLeft: '10px' }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {hodCounts.hod_approved > 5 && (
+                  <div style={{ textAlign: 'right', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => {
+                        setHodPage(1)
+                        setHodView('hod_approved')
+                      }}
+                    >
+                      View all →
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="section hod-archive-section">
+                <h2 className="section-title">Principal Approved</h2>
+                <p style={{ color: 'var(--muted)', marginTop: '-8px', marginBottom: '14px', fontSize: '12px' }}>
+                  Final Approved
+                </p>
+
+                <div className="card table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Faculty</th>
+                        <th>Employee ID</th>
+                        <th>Academic Year</th>
+                        <th>Total Points</th>
+                        <th>Approved At</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {principalApproved.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="td-muted">
+                            No final approved evaluations yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        recentPrincipalApproved.map((ev) => (
                           <tr key={ev.id}>
                             <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
                             <td>{ev.faculty?.employee_id ?? '—'}</td>
@@ -901,8 +1139,11 @@ const refreshHodLists = async () => {
                 </section>
               )}
 
-              {hodView === 'approved' && (
+              {hodView === 'hod_approved' && (
                 <section className="section">
+                  <p style={{ color: 'var(--muted)', marginTop: '-12px', marginBottom: '18px', fontSize: '13px' }}>
+                    Evaluations approved by the HOD awaiting final Principal approval.
+                  </p>
                   <div className="card table-wrap">
                     <table>
                       <thead>
@@ -917,14 +1158,108 @@ const refreshHodLists = async () => {
                       </thead>
 
                       <tbody>
-                        {approved.length === 0 ? (
+                        {hodApproved.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="td-muted">
-                              No approved evaluations yet.
+                              No evaluations awaiting Principal approval.
                             </td>
                           </tr>
                         ) : (
-                          sortRecent(approved).map((ev) => (
+                          sortRecent(hodApproved).map((ev) => (
+                            <tr key={ev.id}>
+                              <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
+                              <td>{ev.faculty?.employee_id ?? '—'}</td>
+                              <td>{ev.academic_year}</td>
+                              <td style={{ fontWeight: 500 }}>
+                                {ev.total_points ?? 0}
+                              </td>
+                              <td>
+                                {(ev as unknown as { approved_at?: string }).approved_at ?? '—'}
+                              </td>
+                              <td>
+                                <Link
+                                  to={`/evaluation/${ev.id}/view`}
+                                  state={{ returnHodView: hodView }}
+                                  onClick={() => {
+                                    if (user?.role === 'hod') {
+                                      window.sessionStorage.setItem('hodReturnView', hodView)
+                                    }
+                                  }}
+                                  className="link"
+                                >
+                                  View
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  onClick={() => deleteEvaluation(ev.id)}
+                                  style={{ marginLeft: '10px' }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    {hodPages > 1 && (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === 1}
+      onClick={() => setHodPage((page) => page - 1)}
+    >
+      ← Previous
+    </button>
+
+    <span>
+      Page {hodPage} of {hodPages}
+    </span>
+
+    <button
+      type="button"
+      className="btn btn-secondary"
+      disabled={hodPage === hodPages}
+      onClick={() => setHodPage((page) => page + 1)}
+    >
+      Next →
+    </button>
+  </div>
+)}
+                  </div>
+                </section>
+              )}
+
+              {hodView === 'approved' && (
+                <section className="section">
+                  <p style={{ color: 'var(--muted)', marginTop: '-12px', marginBottom: '18px', fontSize: '13px' }}>
+                    Evaluations that have received final approval from the Principal.
+                  </p>
+                  <div className="card table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Faculty</th>
+                          <th>Employee ID</th>
+                          <th>Academic Year</th>
+                          <th>Total Points</th>
+                          <th>Approved At</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {principalApproved.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="td-muted">
+                              No final approved evaluations yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          sortRecent(principalApproved).map((ev) => (
                             <tr key={ev.id}>
                               <td>{ev.faculty?.employee_name ?? ev.faculty_id}</td>
                               <td>{ev.faculty?.employee_id ?? '—'}</td>

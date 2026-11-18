@@ -676,13 +676,15 @@ def get_evaluation_counts():
             .count()
         )
 
+        hod_approved = (
+            db.query(EvaluationDB)
+            .filter(EvaluationDB.status == "hod_approved")
+            .count()
+        )
+
         approved = (
             db.query(EvaluationDB)
-            .filter(
-                EvaluationDB.status.in_(
-                    ["hod_approved", "approved"]
-                )
-            )
+            .filter(EvaluationDB.status == "approved")
             .count()
         )
 
@@ -696,6 +698,7 @@ def get_evaluation_counts():
 
         return {
             "pending": pending,
+            "hod_approved": hod_approved,
             "approved": approved,
             "rejected": rejected,
             "total": total,
