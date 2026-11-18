@@ -6,6 +6,7 @@ import {
   FaUserPlus,
   FaSignOutAlt,
   FaChevronRight,
+  FaCog,
 } from 'react-icons/fa'
 
 export default function Layout() {
@@ -26,7 +27,9 @@ export default function Layout() {
         ? 'Evaluation record'
         : location.pathname.startsWith('/faculty/new')
           ? 'Faculty directory'
-          : 'Overview'
+          : location.pathname.startsWith('/settings')
+            ? 'Settings'
+            : 'Overview'
 
   const initials = (user?.name || user?.email || 'FE')
     .split(/[\s@._-]+/)
@@ -56,6 +59,9 @@ export default function Layout() {
               <FaUserPlus /><span>Faculty directory</span><FaChevronRight className="nav-chevron" />
             </NavLink>
           )}
+          <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <FaCog /><span>Settings</span><FaChevronRight className="nav-chevron" />
+          </NavLink>
         </nav>
 
         <div className="sidebar-bottom">

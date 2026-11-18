@@ -8,6 +8,7 @@ import PrincipalDashboard from './pages/PrincipalDashboard'
 import FacultyDetails from './pages/FacultyDetails'
 import EvaluationForm from './pages/EvaluationForm'
 import EvaluationView from './pages/EvaluationView'
+import Settings from './pages/Settings'
 
 function ProtectedRoute({
   children,
@@ -106,6 +107,12 @@ export default function App() {
         <Route
           path="evaluation/:evaluationId/view"
           element={<EvaluationView />}
+        />
+
+        {/* Settings — accessible to all authenticated roles */}
+        <Route
+          path="settings"
+          element={<Settings />}
         />
       </Route>
 

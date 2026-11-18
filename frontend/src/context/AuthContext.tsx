@@ -20,6 +20,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string, collegeId?: string) => Promise<void>
   logout: () => void
+  updateUser: (patch: Partial<User>) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -37,6 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   delete api.defaults.headers.common.Authorization
   setState({ user: null, token: null, loading: false })
 }, [])
+
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setState((prev) => {
+      if (!prev.user) return prev
+      const updated = { ...prev.user, ...patch }
+      sessionStorage.setItem(USER_KEY, JSON.stringify(updated))
+      return { ...prev, user: updated }
+    })
+  }, [])
 
   const login = useCallback(async (email: string, password: string, collegeId?: string) => {
     const { data } = await api.post<{ access_token: string; token_type: string; user: User }>('/auth/login', {
@@ -74,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.token])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

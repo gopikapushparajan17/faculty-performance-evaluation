@@ -146,6 +146,38 @@ Faculty Evaluation System
         print(f"[Password Reset] Failed sending email to {to_email}: {e}")
         return False
 
+def _get_display_name(db, user: UserDB) -> str:
+    """
+    Resolve the display name for a user.
+
+    Priority:
+    1. faculty_details.name  (for faculty – this is the authoritative name)
+    2. users.display_name    (for HOD/Principal who changed their name via settings)
+    3. users.username        (email – the fallback when no name has been set)
+    """
+    if user.role == "faculty":
+        faculty = db.query(FacultyDB).filter(
+            FacultyDB.user_id == user.id
+        ).first()
+        if faculty:
+            return faculty.name
+
+    # Try the display_name column if it exists (non-faculty or faculty without profile)
+    try:
+        from sqlalchemy import text as _text
+        result = db.execute(
+            _text("SELECT display_name FROM users WHERE id = :uid"),
+            {"uid": user.id},
+        ).fetchone()
+        if result and result[0]:
+            return result[0]
+    except Exception:
+        pass
+
+    # Final fallback: username (email)
+    return user.username
+
+
 
 def get_user_by_email(email: str):
     db = SessionLocal()
@@ -160,15 +192,7 @@ def get_user_by_email(email: str):
         if not user:
             return None
 
-        name = user.username
-
-        if user.role == "faculty":
-            faculty = db.query(FacultyDB).filter(
-                FacultyDB.user_id == user.id
-            ).first()
-
-            if faculty:
-                name = faculty.name
+        name = _get_display_name(db, user)
 
         return User(
             id=str(user.id),
@@ -195,15 +219,7 @@ def get_user_by_id(user_id: str):
         if not user:
             return None
 
-        name = user.username
-
-        if user.role == "faculty":
-            faculty = db.query(FacultyDB).filter(
-                FacultyDB.user_id == user.id
-            ).first()
-
-            if faculty:
-                name = faculty.name
+        name = _get_display_name(db, user)
 
         return User(
             id=str(user.id),
