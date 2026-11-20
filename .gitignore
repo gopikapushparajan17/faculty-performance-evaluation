@@ -8,17 +8,16 @@ __pycache__/
 node_modules/
 frontend/node_modules/
 frontend/dist/
-
 # Environment files
 .env
 *.env
-
 # Uploads
 backend/uploads/
-
 # Generated PDF reports
 *.pdf
-
 # OS files
 .DS_Store
 Thumbs.db
+installer/test-venv/
+installer/runtime-venv/
+installer-output/
