@@ -20,7 +20,7 @@ function ProofLink({ url }: { url?: string }) {
 
   const fullUrl = url.startsWith('http')
     ? url
-    : `http://localhost:8000${url}`
+    : url
 
   return (
     <a

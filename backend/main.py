@@ -40,3 +40,8 @@ if Path("uploads").exists():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+# Serve the built React frontend
+frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
